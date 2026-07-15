@@ -1,0 +1,97 @@
+<section class="search">
+  <header class="search__header">
+    <h1>Semantic Search — all-MiniLM-L6-v2</h1>
+    <p class="search__subtitle">
+      In-browser sentence embeddings with Transformers.js, running in a Web Worker.
+      {{ totalDocs }} conference-talk abstracts, embedded on device.
+    </p>
+  </header>
+
+  <app-search-hud
+    class="search__hud"
+    [queryMs]="queryMs()"
+    [backend]="backend()"
+    [modelName]="modelName()"
+    [status]="status()"
+  />
+
+  @if (isPreparing()) {
+    <div class="search__prep" role="status" aria-live="polite">
+      <span class="spinner" aria-hidden="true"></span>
+      @if (status() === 'loading') {
+        <span>Loading embedding model…</span>
+      } @else {
+        <span> Embedding documents… {{ progress().embedded }} / {{ progress().total }} </span>
+      }
+    </div>
+  }
+
+  <div class="search__controls">
+    <input
+      #q
+      class="search__input"
+      type="search"
+      placeholder="Try: krank · doctor · GPU · burnout · make the app feel fast"
+      autocomplete="off"
+      spellcheck="false"
+      [value]="query()"
+      (input)="onInput(q.value)"
+      aria-label="Search query"
+    />
+    <label class="search__toggle">
+      <input type="checkbox" [checked]="keywordMode()" (change)="toggleKeyword()" />
+      <span>Keyword search (substring)</span>
+    </label>
+  </div>
+
+  <p class="search__mode" [class.search__mode--keyword]="keywordMode()">
+    @if (keywordMode()) {
+      Naive substring matching — the dumb baseline. Notice what it misses.
+    } @else {
+      Semantic search — ranked by meaning (cosine similarity of embeddings).
+    }
+  </p>
+
+  <div class="search__results">
+    @if (query().trim().length === 0) {
+      <p class="search__hint">
+        Start typing to search {{ totalDocs }} talks by meaning. Toggle keyword search to compare:
+        “doctor” finds a talk about “sick leave” semantically, but never by substring.
+      </p>
+    } @else if (results().length === 0) {
+      <p class="search__empty">
+        @if (keywordMode()) {
+          No document contains that exact text. This is where keyword search fails — switch it off
+          to search by meaning.
+        } @else if (status() === 'ready') {
+          No results.
+        } @else {
+          Preparing the index…
+        }
+      </p>
+    } @else {
+      <ol class="results">
+        @for (r of results(); track r.doc.id) {
+          <li class="result">
+            <div class="result__bar-track" aria-hidden="true">
+              <div class="result__bar" [style.width]="barWidth(r.score)"></div>
+            </div>
+            <div class="result__body">
+              <div class="result__top">
+                <span class="result__title">{{ r.doc.title }}</span>
+                <span class="result__score">{{ r.score.toFixed(3) }}</span>
+              </div>
+              <p class="result__abstract">{{ r.doc.abstract }}</p>
+            </div>
+          </li>
+        }
+      </ol>
+    }
+  </div>
+
+  @if (overlayMessage(); as msg) {
+    <div class="search__overlay" role="alert">
+      <p>{{ msg }}</p>
+    </div>
+  }
+</section>

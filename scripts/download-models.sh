@@ -14,8 +14,6 @@
 # frontend `postinstall` hook (frontend/scripts/copy-litert-wasm.mjs).
 #
 # Still planned (added by later phases — do NOT pre-fetch here yet):
-#   Semantic search / smart form (Transformers.js)
-#     - Sentence-embedding model, e.g. all-MiniLM-L6-v2 (ONNX) -> /models/embeddings/
 #   OCR demo (Tesseract.js)
 #     - eng.traineddata (+ any extra languages)                -> /models/tesseract/
 
@@ -48,6 +46,27 @@ verify_sha() {
     return 1
   fi
   echo "  ✓ checksum verified"
+}
+
+# fetch_verify <url> <dest> <sha256>
+# Idempotent single-file download: skip when already present and verified,
+# otherwise download to a temp file, verify, then move into place.
+fetch_verify() {
+  local url="$1" dest="$2" sha="$3"
+  if [[ -f "$dest" ]] && verify_sha "$dest" "$sha" >/dev/null 2>&1; then
+    echo "  • $(basename "$dest") already present and verified, skipping"
+    return 0
+  fi
+  mkdir -p "$(dirname "$dest")"
+  local tmp="${dest}.download"
+  echo "  • downloading $(basename "$dest")…"
+  curl -fSL "$url" -o "$tmp"
+  if ! verify_sha "$tmp" "$sha"; then
+    rm -f "$tmp"
+    return 1
+  fi
+  mv "$tmp" "$dest"
+  chmod 644 "$dest"
 }
 
 # =============================================================================
@@ -94,6 +113,39 @@ else
   verify_sha "$POSE_MODEL" "$POSE_SHA256"
   echo "  • saved -> ${POSE_MODEL#$REPO_ROOT/}"
 fi
+
+# =============================================================================
+# Semantic search / smart form (Transformers.js) — all-MiniLM-L6-v2 (ONNX)
+# =============================================================================
+#
+# Xenova's ONNX export of sentence-transformers/all-MiniLM-L6-v2 (384-dim
+# sentence embeddings). Transformers.js resolves a model id to files under
+# {localModelPath}/{id}/, so these must live at the exact path below; the worker
+# sets env.localModelPath = '/models/' and env.allowRemoteModels = false so the
+# Hugging Face Hub is never touched at runtime.
+#
+# Both weight variants are fetched: fp32 (model.onnx) for the WebGPU path and
+# q8-quantized (model_quantized.onnx) for the smaller/faster wasm fallback. The
+# worker picks the dtype per backend (see embedding.worker.ts).
+#
+# Note: the ONNX Runtime *wasm* binaries are NOT fetched here — they ship inside
+# onnxruntime-web (a Transformers.js dep) and are copied into public/wasm/ort/
+# by the frontend `postinstall` hook (frontend/scripts/copy-ort-wasm.mjs).
+
+EMB_DIR="$MODELS_DIR/Xenova/all-MiniLM-L6-v2"
+EMB_BASE="https://huggingface.co/Xenova/all-MiniLM-L6-v2/resolve/main"
+
+echo "==> Semantic search: all-MiniLM-L6-v2 (Xenova ONNX)"
+fetch_verify "$EMB_BASE/config.json" "$EMB_DIR/config.json" \
+  "7135149f7cffa1a573466c6e4d8423ed73b62fd2332c575bf738a0d033f70df7"
+fetch_verify "$EMB_BASE/tokenizer.json" "$EMB_DIR/tokenizer.json" \
+  "da0e79933b9ed51798a3ae27893d3c5fa4a201126cef75586296df9b4d2c62a0"
+fetch_verify "$EMB_BASE/tokenizer_config.json" "$EMB_DIR/tokenizer_config.json" \
+  "9261e7d79b44c8195c1cada2b453e55b00aeb81e907a6664974b4d7776172ab3"
+fetch_verify "$EMB_BASE/onnx/model.onnx" "$EMB_DIR/onnx/model.onnx" \
+  "759c3cd2b7fe7e93933ad23c4c9181b7396442a2ed746ec7c1d46192c469c46e"
+fetch_verify "$EMB_BASE/onnx/model_quantized.onnx" "$EMB_DIR/onnx/model_quantized.onnx" \
+  "afdb6f1a0e45b715d0bb9b11772f032c399babd23bfc31fed1c170afc848bdb1"
 
 echo
 echo "download-models.sh: done."

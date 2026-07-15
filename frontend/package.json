@@ -8,7 +8,7 @@
     "watch": "ng build --watch --configuration development",
     "test": "ng test",
     "e2e": "playwright test",
-    "postinstall": "node scripts/copy-litert-wasm.mjs"
+    "postinstall": "node scripts/copy-litert-wasm.mjs && node scripts/copy-ort-wasm.mjs"
   },
   "private": true,
   "packageManager": "npm@11.11.0",
@@ -19,6 +19,7 @@
     "@angular/forms": "^22.0.0",
     "@angular/platform-browser": "^22.0.0",
     "@angular/router": "^22.0.0",
+    "@huggingface/transformers": "^4.2.0",
     "@litertjs/core": "^2.5.2",
     "rxjs": "~7.8.0",
     "tslib": "^2.3.0"
