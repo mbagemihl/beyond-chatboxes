@@ -1,0 +1,12 @@
+# Root ignores. Each module also has its own .gitignore
+# (frontend/.gitignore, backend/.gitignore) covering node_modules, dist,
+# build/, .gradle, etc.
+
+# Frontend production build copied into the backend by `make build` — a build
+# artifact, not source. The directory itself is kept via .gitkeep.
+/backend/src/main/resources/static/*
+!/backend/src/main/resources/static/.gitkeep
+
+# OS / editor noise
+.DS_Store
+Thumbs.db

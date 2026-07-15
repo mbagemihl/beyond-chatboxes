@@ -46,7 +46,10 @@ with a Spring Boot/Kotlin backend that serves the app and acts as the
 
 ## Backend conventions
 
-- Spring Boot 3.x, Kotlin, JDK 21, Gradle Kotlin DSL.
+- Spring Boot 4.0.x, Kotlin, JDK 21, Gradle Kotlin DSL. (Spring Initializr no
+  longer offers the now-EOL 3.x line; scaffolded on 4.0.7. Note Boot 4 renames
+  starters, e.g. `spring-boot-starter-webmvc`, and ships Jackson 3 under the
+  `tools.jackson` package.)
 - Constructor injection, immutable `val` everywhere possible.
 - Bean Validation (`jakarta.validation`) on all request DTOs.
 - Integration tests use a fixed `Clock` bean.
