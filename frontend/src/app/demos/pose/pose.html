@@ -1,0 +1,31 @@
+<section class="pose">
+  <header class="pose__header">
+    <h1>Pose — MoveNet SinglePose</h1>
+    <p class="pose__subtitle">Browser-side pose estimation with LiteRT.js</p>
+  </header>
+
+  <div class="pose__stage">
+    <!--
+      The <video> only feeds pixels to the canvas, so it is visually hidden.
+      Note: NOT display:none — that can pause frame decoding in some browsers.
+    -->
+    <video #video class="pose__source" playsinline muted autoplay></video>
+    <canvas #canvas class="pose__canvas"></canvas>
+
+    <app-pose-hud
+      class="pose__hud"
+      [fps]="fps()"
+      [inferenceMs]="avgInferenceMs()"
+      [backend]="backend()"
+      [modelName]="modelName"
+    />
+
+    <app-pose-angle-panel class="pose__angles" [angles]="angles()" />
+
+    @if (overlayMessage(); as msg) {
+      <div class="pose__overlay" role="status">
+        <p>{{ msg }}</p>
+      </div>
+    }
+  </div>
+</section>

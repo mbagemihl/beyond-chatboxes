@@ -29,6 +29,11 @@ yarn-error.log
 !.vscode/mcp.json
 .history/*
 
+# Build-time ML artifacts (fetched by scripts/download-models.sh and the
+# postinstall wasm copy — never committed, never fetched from a CDN at runtime).
+/public/models/
+/public/wasm/
+
 # Miscellaneous
 /.angular/cache
 .sass-cache/
@@ -38,6 +43,13 @@ yarn-error.log
 testem.log
 /typings
 __screenshots__/
+
+# Playwright
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
+/e2e/fixtures/camera.y4m
 
 # System files
 .DS_Store
