@@ -159,16 +159,34 @@ export class PoseEngine {
    * Necessarily async: reading model output back from the GPU is asynchronous.
    */
   async runOnVideoFrame(video: HTMLVideoElement): Promise<PoseResult | null> {
+    return this.runOnFrame(video, video.videoWidth, video.videoHeight);
+  }
+
+  /**
+   * Run the model on an arbitrary frame source (a `<video>`, a captured
+   * `<canvas>`, an `ImageBitmap`, …) whose intrinsic size is `srcW x srcH`.
+   * Returns keypoints in that source's normalized coords plus inference time,
+   * or `null` if the engine is not ready or the source has no pixels yet.
+   *
+   * The benchmark uses this to score the SAME captured still frame the cloud
+   * tier receives; the live demo passes its video element via
+   * {@link runOnVideoFrame}.
+   */
+  async runOnFrame(
+    source: CanvasImageSource,
+    srcW: number,
+    srcH: number,
+  ): Promise<PoseResult | null> {
     const model = this.model;
     const ctx = this.ctx;
     const buffer = this.inputBuffer;
     if (!model || !ctx || !buffer) {
       return null;
     }
-    const vw = video.videoWidth;
-    const vh = video.videoHeight;
+    const vw = srcW;
+    const vh = srcH;
     if (vw === 0 || vh === 0) {
-      return null; // camera not producing frames yet
+      return null; // source not producing frames yet
     }
 
     // Letterbox the frame into the square model input, preserving aspect ratio.
@@ -176,7 +194,7 @@ export class PoseEngine {
     const { scaledW, scaledH, padX, padY } = computeLetterbox(vw, vh, size);
     ctx.fillStyle = 'black';
     ctx.fillRect(0, 0, size, size);
-    ctx.drawImage(video, padX, padY, scaledW, scaledH);
+    ctx.drawImage(source, padX, padY, scaledW, scaledH);
     const rgba = ctx.getImageData(0, 0, size, size).data;
 
     // Pack RGBA -> RGB into the (reused) typed input buffer. MoveNet expects

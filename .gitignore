@@ -7,6 +7,11 @@
 /backend/src/main/resources/static/*
 !/backend/src/main/resources/static/.gitkeep
 
+# Python toolchain for the one-off tflite->onnx model conversion
+# (scripts/convert-movenet-onnx.sh). Not source; recreated on demand.
+/scripts/.venv-onnx/
+/scripts/.convert-*.log
+
 # OS / editor noise
 .DS_Store
 Thumbs.db

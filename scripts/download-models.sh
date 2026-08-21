@@ -13,10 +13,6 @@
 # `@litertjs/core` npm package and is copied into public/wasm/litert/ by the
 # frontend `postinstall` hook (frontend/scripts/copy-litert-wasm.mjs).
 #
-# Still planned (added by later phases — do NOT pre-fetch here yet):
-#   OCR demo (Tesseract.js)
-#     - eng.traineddata (+ any extra languages)                -> /models/tesseract/
-
 set -euo pipefail
 
 # Resolve repo root so the script works from any CWD.
@@ -114,6 +110,38 @@ else
   echo "  • saved -> ${POSE_MODEL#$REPO_ROOT/}"
 fi
 
+# ---------------------------------------------------------------------------
+# Pose (server "cloud tier") — MoveNet ONNX, converted from the tflite above so
+# the browser (LiteRT.js) and server (DJL/ONNX Runtime) run the SAME model.
+# The conversion needs python; it is only required on a box that serves the
+# backend cloud tier, so a missing/failed conversion is a WARNING, not fatal —
+# the frontend demos still build and run without it.
+POSE_ONNX="$POSE_DIR/movenet-singlepose-lightning.onnx"
+echo "==> Pose (server): MoveNet ONNX for the DJL cloud tier"
+if [[ -f "$POSE_ONNX" ]]; then
+  echo "  • already present, skipping"
+elif "$SCRIPT_DIR/convert-movenet-onnx.sh"; then
+  : # convert-movenet-onnx.sh prints its own progress
+else
+  echo "  ! ONNX conversion skipped/failed. The backend /api/infer/pose endpoint" >&2
+  echo "    will return 503 until it exists. Re-run scripts/convert-movenet-onnx.sh" >&2
+  echo "    (needs python3) to enable the benchmark's cloud tier." >&2
+fi
+
+# ---------------------------------------------------------------------------
+# Pose fixture clip (?fixture=1) — the stage fallback when lighting or camera
+# permissions fail. A short CC BY 3.0 squat-demonstration video from Wikimedia
+# Commons ("Squat - exercise demonstration video.webm"), full-body and
+# MoveNet-friendly. Served from our own origin at /fixtures/pose.webm; like
+# every fetched artifact it is not committed. The smart-form fixture
+# (receipt.svg) is authored in-repo and needs no download.
+FIXTURES_DIR="$REPO_ROOT/frontend/public/fixtures"
+POSE_FIXTURE_URL="https://upload.wikimedia.org/wikipedia/commons/5/5c/Squat_-_exercise_demonstration_video.webm"
+
+echo "==> Pose fixture: squat demonstration clip (Wikimedia Commons, CC BY 3.0)"
+fetch_verify "$POSE_FIXTURE_URL" "$FIXTURES_DIR/pose.webm" \
+  "2440985661c3533a4ce78472b0f4577dbdf023aff3f8f9a225bbb5ff8071b1e9"
+
 # =============================================================================
 # Semantic search / smart form (Transformers.js) — all-MiniLM-L6-v2 (ONNX)
 # =============================================================================
@@ -146,6 +174,32 @@ fetch_verify "$EMB_BASE/onnx/model.onnx" "$EMB_DIR/onnx/model.onnx" \
   "759c3cd2b7fe7e93933ad23c4c9181b7396442a2ed746ec7c1d46192c469c46e"
 fetch_verify "$EMB_BASE/onnx/model_quantized.onnx" "$EMB_DIR/onnx/model_quantized.onnx" \
   "afdb6f1a0e45b715d0bb9b11772f032c399babd23bfc31fed1c170afc848bdb1"
+
+# =============================================================================
+# Smart form OCR (Tesseract.js) — eng + deu language data
+# =============================================================================
+#
+# Tesseract.js reads {langPath}/{lang}.traineddata at recognize time. The
+# OcrService sets langPath = '/models/tesseract/' and gzip = false, so we fetch
+# the UNCOMPRESSED tessdata_fast files (LSTM, tuned for speed — right for a live
+# demo) and serve them straight from our origin. The Hub / jsDelivr CDN is never
+# touched at runtime.
+#
+# The Tesseract worker script and WebAssembly core are NOT fetched here — they
+# ship inside the tesseract.js / tesseract.js-core npm packages and are copied
+# into public/wasm/tesseract/ by the frontend `postinstall` hook
+# (frontend/scripts/copy-tesseract-wasm.mjs).
+#
+# Pinned to tessdata_fast tag 4.1.0 for reproducible, offline-safe builds.
+
+TESS_DIR="$MODELS_DIR/tesseract"
+TESS_BASE="https://github.com/tesseract-ocr/tessdata_fast/raw/4.1.0"
+
+echo "==> Smart form OCR: Tesseract eng + deu language data (tessdata_fast)"
+fetch_verify "$TESS_BASE/eng.traineddata" "$TESS_DIR/eng.traineddata" \
+  "7d4322bd2a7749724879683fc3912cb542f19906c83bcc1a52132556427170b2"
+fetch_verify "$TESS_BASE/deu.traineddata" "$TESS_DIR/deu.traineddata" \
+  "19d219bbb6672c869d20a9636c6816a81eb9a71796cb93ebe0cb1530e2cdb22d"
 
 echo
 echo "download-models.sh: done."

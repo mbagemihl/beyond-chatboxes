@@ -1,0 +1,123 @@
+/* Landing page — sized to be readable from row 20, deck theme. */
+:host {
+  display: block;
+  min-height: 100dvh;
+  background: #0b1220;
+  color: #e5eef5;
+  box-sizing: border-box;
+  padding: clamp(1.5rem, 4vw, 4rem);
+}
+
+.home {
+  max-width: 72rem;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: clamp(1.5rem, 4vh, 3rem);
+  min-height: calc(100dvh - 2 * clamp(1.5rem, 4vw, 4rem));
+  justify-content: center;
+}
+
+.home__title {
+  margin: 0;
+  font-size: clamp(2.5rem, 6vw, 4.5rem);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.05;
+}
+
+.home__tagline {
+  margin: 0.5rem 0 0;
+  font-size: clamp(1.1rem, 2.2vw, 1.6rem);
+  color: #8fa1b5;
+}
+
+.home__grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: clamp(0.9rem, 2vw, 1.5rem);
+}
+
+@media (max-width: 760px) {
+  .home__grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.card {
+  display: flex;
+  align-items: flex-start;
+  gap: 1.1rem;
+  padding: clamp(1.1rem, 2.5vw, 1.8rem);
+  background: #0f1a2c;
+  border: 1px solid rgba(34, 211, 238, 0.18);
+  border-radius: 1rem;
+  text-decoration: none;
+  color: inherit;
+  transition:
+    border-color 0.15s ease,
+    transform 0.15s ease;
+
+  &:hover,
+  &:focus-visible {
+    border-color: #22d3ee;
+    transform: translateY(-2px);
+    outline: none;
+  }
+}
+
+.card__key {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: clamp(2.4rem, 4vw, 3.2rem);
+  height: clamp(2.4rem, 4vw, 3.2rem);
+  border-radius: 0.6rem;
+  background: rgba(34, 211, 238, 0.12);
+  border: 1px solid rgba(34, 211, 238, 0.5);
+  color: #22d3ee;
+  font-size: clamp(1.3rem, 2.5vw, 1.8rem);
+  font-weight: 700;
+  font-family: 'SFMono-Regular', ui-monospace, 'Menlo', monospace;
+}
+
+.card__body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+.card__title {
+  font-size: clamp(1.5rem, 3vw, 2.1rem);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.card__tech {
+  font-size: clamp(0.85rem, 1.5vw, 1rem);
+  color: #22d3ee;
+  font-family: 'SFMono-Regular', ui-monospace, 'Menlo', monospace;
+}
+
+.card__blurb {
+  font-size: clamp(1rem, 1.8vw, 1.2rem);
+  line-height: 1.45;
+  color: #b7c4d3;
+}
+
+.home__footer {
+  font-size: clamp(0.95rem, 1.6vw, 1.15rem);
+  color: #6b7f95;
+  text-align: center;
+
+  kbd {
+    padding: 0.1rem 0.5rem;
+    border-radius: 0.35rem;
+    border: 1px solid rgba(143, 161, 181, 0.5);
+    background: rgba(255, 255, 255, 0.04);
+    color: #b7c4d3;
+    font-family: 'SFMono-Regular', ui-monospace, 'Menlo', monospace;
+    font-size: 0.9em;
+  }
+}

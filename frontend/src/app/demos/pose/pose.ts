@@ -10,6 +10,7 @@ import {
   signal,
   viewChild,
 } from '@angular/core';
+import { ActivatedRoute } from '@angular/router';
 import { CameraService } from './camera.service';
 import { PoseEngine } from './pose-engine.service';
 import {
@@ -27,6 +28,8 @@ const KP_THRESHOLD = 0.3;
 const MS_WINDOW = 30;
 /** Push throttled stats into signals at ~2 Hz (CLAUDE.md convention). */
 const STATS_INTERVAL_MS = 500;
+/** Bundled stage-fallback clip for `?fixture=1` (fetched by download-models.sh). */
+const FIXTURE_VIDEO_URL = '/fixtures/pose.webm';
 
 /**
  * The pose demo. Thin and declarative: it wires {@link CameraService} and
@@ -47,6 +50,11 @@ export class Pose {
   private readonly engine = inject(PoseEngine);
   private readonly zone = inject(NgZone);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly route = inject(ActivatedRoute);
+
+  /** `?fixture=1` — run on the bundled clip instead of the live camera. */
+  protected readonly fixtureMode =
+    this.route.snapshot.queryParamMap.get('fixture') === '1';
 
   private readonly videoRef =
     viewChild.required<ElementRef<HTMLVideoElement>>('video');
@@ -100,7 +108,11 @@ export class Pose {
     const video = this.videoRef().nativeElement;
     // Kick off model load and camera in parallel; the loop guards on readiness.
     void this.engine.load();
-    void this.camera.start(video);
+    if (this.fixtureMode) {
+      void this.camera.startFixture(video, FIXTURE_VIDEO_URL);
+    } else {
+      void this.camera.start(video);
+    }
     this.zone.runOutsideAngular(() => {
       this.lastStatsAt = performance.now();
       this.rafId = requestAnimationFrame(this.tick);

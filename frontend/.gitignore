@@ -33,6 +33,9 @@ yarn-error.log
 # postinstall wasm copy — never committed, never fetched from a CDN at runtime).
 /public/models/
 /public/wasm/
+# Pose fixture clip, also fetched by download-models.sh. The smart-form
+# fixture (receipt.svg) is authored in-repo and IS committed.
+/public/fixtures/pose.webm
 
 # Miscellaneous
 /.angular/cache

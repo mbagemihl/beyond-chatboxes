@@ -1,0 +1,53 @@
+%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [3 0 R] /Count 1 >>
+endobj
+3 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 420 595] /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>
+endobj
+4 0 obj
+<< /Length 501 >>
+stream
+BT
+/F1 13 Tf
+22 TL
+40 555 Td
+(Kaffeehaus Berlin GmbH) Tj T*
+(Friedrichstra\337e 120) Tj T*
+(10117 Berlin) Tj T*
+T*
+(Rechnung Nr. 2026-0042) Tj T*
+(Datum: 15.07.2026) Tj T*
+T*
+(Beschreibung        Betrag) Tj T*
+(Espresso Doppio     3,80 EUR) Tj T*
+(K\344sekuchen          4,50 EUR) Tj T*
+(Mineralwasser       2,70 EUR) Tj T*
+T*
+(Gesamtbetrag:      11,00 EUR) Tj T*
+T*
+(IBAN: DE89 3704 0044 0532 0130 00) Tj T*
+(E-Mail: buchhaltung@kaffeehaus-berlin.de) Tj T*
+(Vielen Dank f\374r Ihren Besuch!) Tj T*
+ET
+endstream
+endobj
+5 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Courier /Encoding /WinAnsiEncoding >>
+endobj
+xref
+0 6
+0000000000 65535 f 
+0000000009 00000 n 
+0000000058 00000 n 
+0000000115 00000 n 
+0000000241 00000 n 
+0000000793 00000 n 
+trailer
+<< /Size 6 /Root 1 0 R >>
+startxref
+888
+%%EOF

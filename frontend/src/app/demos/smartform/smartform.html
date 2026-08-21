@@ -1,0 +1,175 @@
+<section class="sf">
+  <header class="sf__header">
+    <h1>
+      Smart Form — on-device OCR
+      @if (fixtureMode) {
+        <span class="fixture-badge">fixture</span>
+      }
+    </h1>
+    <p class="sf__subtitle">
+      Point a receipt at the camera and scan. Tesseract.js reads it in a Web Worker, pure heuristics
+      map the text to fields, and the form fills itself — never overwriting anything you have
+      already typed. Nothing leaves the browser.
+    </p>
+  </header>
+
+  <app-smartform-hud
+    class="sf__hud"
+    [ocrMs]="ocrMs()"
+    [backend]="ocrBackend()"
+    [status]="ocrStatus()"
+    [modelName]="ocrModel()"
+    [promptApi]="promptApiActive()"
+  />
+
+  <div class="sf__grid">
+    <!-- ============================ FORM ============================ -->
+    <form class="sf__form" [formGroup]="form" (ngSubmit)="onSubmit()" novalidate>
+      <h2 class="sf__form-title">Expense report</h2>
+
+      <div class="field">
+        <label for="date">Date</label>
+        <div class="field__row">
+          <input id="date" type="date" formControlName="date" />
+          @if (badgeFor('date'); as conf) {
+            <span class="badge" [class]="'badge--' + conf">auto · {{ conf }}</span>
+          }
+        </div>
+        @if (form.controls.date.touched && form.controls.date.invalid) {
+          <p class="field__error">Enter a valid date.</p>
+        }
+      </div>
+
+      <div class="field">
+        <label for="amount">Amount</label>
+        <div class="field__row">
+          <input id="amount" type="number" step="0.01" min="0" formControlName="amount" />
+          @if (badgeFor('amount'); as conf) {
+            <span class="badge" [class]="'badge--' + conf">auto · {{ conf }}</span>
+          }
+        </div>
+        @if (form.controls.amount.touched && form.controls.amount.invalid) {
+          <p class="field__error">Enter an amount greater than 0.</p>
+        }
+      </div>
+
+      <div class="field">
+        <label for="currency">Currency</label>
+        <div class="field__row">
+          <select id="currency" formControlName="currency">
+            @for (code of currencies; track code) {
+              <option [value]="code">{{ code }}</option>
+            }
+          </select>
+          @if (badgeFor('currency'); as conf) {
+            <span class="badge" [class]="'badge--' + conf">auto · {{ conf }}</span>
+          }
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="iban">IBAN</label>
+        <div class="field__row">
+          <input
+            id="iban"
+            type="text"
+            autocomplete="off"
+            spellcheck="false"
+            formControlName="iban"
+          />
+          @if (badgeFor('iban'); as conf) {
+            <span class="badge" [class]="'badge--' + conf">auto · {{ conf }}</span>
+          }
+        </div>
+        @if (form.controls.iban.touched && form.controls.iban.hasError('iban')) {
+          <p class="field__error">That IBAN fails its checksum.</p>
+        }
+      </div>
+
+      <div class="field">
+        <label for="vendor">Vendor</label>
+        <div class="field__row">
+          <input id="vendor" type="text" formControlName="vendor" />
+          @if (badgeFor('vendor'); as conf) {
+            <span class="badge" [class]="'badge--' + conf">auto · {{ conf }}</span>
+          }
+        </div>
+        @if (form.controls.vendor.touched && form.controls.vendor.invalid) {
+          <p class="field__error">Enter the vendor name.</p>
+        }
+      </div>
+
+      <div class="field">
+        <label for="email">Email</label>
+        <div class="field__row">
+          <input id="email" type="email" autocomplete="off" formControlName="email" />
+          @if (badgeFor('email'); as conf) {
+            <span class="badge" [class]="'badge--' + conf">auto · {{ conf }}</span>
+          }
+        </div>
+        @if (form.controls.email.touched && form.controls.email.invalid) {
+          <p class="field__error">Enter a valid email address.</p>
+        }
+      </div>
+
+      <button class="sf__submit" type="submit" [disabled]="form.invalid">Submit expense</button>
+    </form>
+
+    <!-- =========================== CAMERA =========================== -->
+    <div class="sf__camera">
+      <div class="sf__stage">
+        <video #video class="sf__video" playsinline muted autoplay></video>
+        <!-- Off-screen frame grab target; never shown. -->
+        <canvas #capture class="sf__capture"></canvas>
+
+        <!-- Fixture mode: a bundled sample receipt replaces the camera feed. -->
+        @if (fixtureMode) {
+          <img
+            #fixtureImg
+            class="sf__fixture"
+            src="/fixtures/receipt.svg"
+            alt="Bundled sample receipt"
+            (load)="onFixtureLoad()"
+            (error)="onFixtureError()"
+          />
+        }
+
+        @if (isRecognizing()) {
+          <div class="sf__scanning" role="status" aria-live="polite">
+            <div class="sf__progress" [style.width.%]="ocrProgress() * 100"></div>
+            <span>Reading… {{ (ocrProgress() * 100).toFixed(0) }}%</span>
+          </div>
+        }
+
+        @if (cameraOverlay(); as msg) {
+          <div class="sf__overlay" role="status">
+            <p>{{ msg }}</p>
+          </div>
+        }
+      </div>
+
+      <div class="sf__controls">
+        <button
+          class="sf__scan"
+          type="button"
+          (click)="scan()"
+          [disabled]="!scanReady() || isRecognizing()"
+        >
+          {{ isRecognizing() ? 'Scanning…' : 'Scan document' }}
+        </button>
+
+        <div class="sf__net" [class.sf__net--nonzero]="bytesUploaded() > 0" role="status">
+          <span class="sf__net-value">🔒 {{ bytesUploaded() }} bytes uploaded</span>
+          <span class="sf__net-detail">{{ requestCount() }} network requests since scan</span>
+        </div>
+      </div>
+
+      @if (recognizedText()) {
+        <details class="sf__transcript">
+          <summary>Recognized text · confidence {{ ocrConfidence().toFixed(0) }}%</summary>
+          <pre>{{ recognizedText() }}</pre>
+        </details>
+      }
+    </div>
+  </div>
+</section>

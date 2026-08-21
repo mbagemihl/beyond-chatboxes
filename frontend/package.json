@@ -8,7 +8,7 @@
     "watch": "ng build --watch --configuration development",
     "test": "ng test",
     "e2e": "playwright test",
-    "postinstall": "node scripts/copy-litert-wasm.mjs && node scripts/copy-ort-wasm.mjs"
+    "postinstall": "node scripts/copy-litert-wasm.mjs && node scripts/copy-ort-wasm.mjs && node scripts/copy-tesseract-wasm.mjs"
   },
   "private": true,
   "packageManager": "npm@11.11.0",
@@ -22,7 +22,9 @@
     "@huggingface/transformers": "^4.2.0",
     "@litertjs/core": "^2.5.2",
     "rxjs": "~7.8.0",
-    "tslib": "^2.3.0"
+    "tesseract.js": "7.0.0",
+    "tslib": "^2.3.0",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@angular/build": "^22.0.6",

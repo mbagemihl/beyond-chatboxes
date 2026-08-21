@@ -1,0 +1,23 @@
+<main class="home">
+  <header class="home__header">
+    <h1 class="home__title">Beyond the Chatbox</h1>
+    <p class="home__tagline">Browser-side ML, live on stage — no cloud required.</p>
+  </header>
+
+  <nav class="home__grid" aria-label="Demos">
+    @for (demo of demos; track demo.path; let i = $index) {
+      <a class="card" [routerLink]="['/', demo.path]">
+        <span class="card__key" aria-hidden="true">{{ i + 1 }}</span>
+        <span class="card__body">
+          <span class="card__title">{{ demo.title }}</span>
+          <span class="card__tech">{{ demo.tech }}</span>
+          <span class="card__blurb">{{ demo.blurb }}</span>
+        </span>
+      </a>
+    }
+  </nav>
+
+  <footer class="home__footer">
+    Press <kbd>1</kbd>–<kbd>4</kbd> to jump between demos · <kbd>F</kbd> for fullscreen
+  </footer>
+</main>
