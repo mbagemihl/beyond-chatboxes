@@ -2,6 +2,21 @@
  * extract-fields.ts — pure, framework-free heuristics that turn raw OCR text
  * into candidate expense-report field values.
  *
+ * ┌─────────────────────────────────────────────────────────────────────────┐
+ * │ WORKSHOP BLOCK 3 — Reading a document on-device                         │
+ * │                                                                         │
+ * │ OCR hands you a wall of noisy text. All the value is in what you do     │
+ * │ with it. This is also where the privacy argument becomes visible: the   │
+ * │ "0 bytes uploaded" counter sits right next to a scanned document.       │
+ * │                                                                         │
+ * │ Implement the functions marked TODO below.                              │
+ * │   Check your work:  make verify-3                                       │
+ * │   Stuck?            make solve-3                                        │
+ * │                                                                         │
+ * │ Watch it work:  http://localhost:4200/smartform?fixture=1               │
+ * │ Hit "Scan document" — fields fill in as your extractors start working.  │
+ * └─────────────────────────────────────────────────────────────────────────┘
+ *
  * No Angular / DOM / Tesseract dependencies on purpose: every function is a
  * plain `string -> value` transform so the whole extraction pipeline is
  * trivially unit-testable without TestBed (see extract-fields.spec.ts). The
@@ -47,31 +62,31 @@ export interface ExtractedFields {
 // =============================================================================
 
 /**
- * Validate an IBAN with the ISO 7064 mod-97-10 checksum (used by ISO 13616).
+ * TODO (block 3, core) — Validate an IBAN with the ISO 7064 mod-97-10 checksum
+ * (used by ISO 13616).
  *
- * Steps: strip spaces / uppercase; reject anything that is not 2 letters, 2
- * check digits, then 1–30 alphanumerics; move the first four characters to the
- * end; map letters to numbers (A=10 … Z=35); the resulting big integer mod 97
- * must equal 1. We fold the mod-97 in chunks to avoid BigInt / overflow.
+ * Why a checksum and not a regex: OCR misreads digits constantly, and a wrong
+ * account number is far worse than an empty field. A checksum lets you REFUSE
+ * to answer instead of guessing — which is why the extractor below only ever
+ * fills the IBAN field with a value that passes this function.
+ *
+ * The algorithm:
+ *   1. strip spaces, uppercase;
+ *   2. reject anything that is not 2 letters, 2 check digits, then 1–30
+ *      alphanumerics;
+ *   3. move the first four characters to the end;
+ *   4. map letters to numbers (A=10 … Z=35), concatenating them as digits;
+ *   5. the resulting (very large) integer mod 97 must equal 1.
+ *
+ * Step 5 overflows a JS number, so fold the remainder as you go: keep a running
+ * `remainder`, append each mapped value to it as text, and take `% 97` each
+ * time. No BigInt needed.
  *
  * Pure and side-effect free — the single source of truth for "is this a real
- * IBAN" used by both extraction and the form's validator.
+ * IBAN", used by both extraction and the form's validator.
  */
 export function isValidIban(candidate: string): boolean {
-  const iban = candidate.replace(/\s+/g, '').toUpperCase();
-  if (!/^[A-Z]{2}\d{2}[A-Z0-9]{1,30}$/.test(iban)) {
-    return false;
-  }
-  // Move the first four chars (country code + check digits) to the end.
-  const rearranged = iban.slice(4) + iban.slice(0, 4);
-  // Convert to the numeric string, then reduce mod 97 in safe-size chunks.
-  let remainder = 0;
-  for (const ch of rearranged) {
-    const value = ch >= 'A' && ch <= 'Z' ? ch.charCodeAt(0) - 55 : ch;
-    const fragment = `${remainder}${value}`;
-    remainder = Number(fragment) % 97;
-  }
-  return remainder === 1;
+  return false;
 }
 
 /**
@@ -171,45 +186,22 @@ const TOTAL_KEYWORDS =
 const MONEY_TOKEN = /\d{1,3}(?:[.,]\d{3})+(?:[.,]\d{1,2})?|\d+(?:[.,]\d{1,2})?/g;
 
 /**
- * Parse a single money token into a number, resolving the thousands / decimal
- * separator ambiguity between locales (`1.234,56` DE vs `1,234.56` US):
+ * TODO (block 3, core) — Parse a single money token into a number, resolving the
+ * thousands / decimal separator ambiguity between locales (`1.234,56` in
+ * Germany vs `1,234.56` in the US — the same amount, mirrored punctuation).
+ *
+ * This is the unglamorous half of document AI, and it is where a naive
+ * `parseFloat` quietly turns €1.234,56 into €1.23. The rules the specs expect:
  *
  *   - both separators present → the *last* one is the decimal separator;
  *   - a single separator followed by 1–2 digits → decimal (e.g. `12,50`);
  *   - otherwise every separator is a thousands separator (e.g. `1.234`).
  *
- * Returns null when the token has no digits.
+ * Strip any non-digit, non-separator characters first (currency symbols, stray
+ * OCR marks). Return null when the token has no digits at all.
  */
 export function parseMoney(raw: string): number | null {
-  const s = raw.replace(/[^\d.,]/g, '');
-  if (!/\d/.test(s)) {
-    return null;
-  }
-  const lastComma = s.lastIndexOf(',');
-  const lastDot = s.lastIndexOf('.');
-  let decimalSep = '';
-  if (lastComma !== -1 && lastDot !== -1) {
-    decimalSep = lastComma > lastDot ? ',' : '.';
-  } else if (lastComma !== -1) {
-    const after = s.length - lastComma - 1;
-    if ((s.match(/,/g) ?? []).length === 1 && after >= 1 && after <= 2) {
-      decimalSep = ',';
-    }
-  } else if (lastDot !== -1) {
-    const after = s.length - lastDot - 1;
-    if ((s.match(/\./g) ?? []).length === 1 && after >= 1 && after <= 2) {
-      decimalSep = '.';
-    }
-  }
-  let normalized: string;
-  if (decimalSep) {
-    const thousands = decimalSep === ',' ? '.' : ',';
-    normalized = s.split(thousands).join('').replace(decimalSep, '.');
-  } else {
-    normalized = s.replace(/[.,]/g, '');
-  }
-  const n = Number(normalized);
-  return Number.isFinite(n) ? n : null;
+  return null;
 }
 
 /** A money value found on a line, remembering whether it had a decimal part. */
@@ -252,47 +244,26 @@ export function extractCurrency(text: string): Extracted<string> | undefined {
 }
 
 /**
- * Extract the receipt total. To avoid mistaking a date (`15.07.2026`) or the
- * digits of an IBAN for money, we only look at lines that carry a currency
- * symbol/code or a "total" keyword — exactly where a real amount lives:
+ * TODO (block 3, core) — Extract the receipt total.
  *
- *   - a line with a total keyword → `high`;
+ * The trap: a receipt is full of numbers that look like money. `15.07.2026` is a
+ * date, an IBAN is a wall of digits, and every line item has a price. Searching
+ * the whole text for "the biggest number" finds the year.
+ *
+ * So restrict the search to lines that carry EVIDENCE of being the total — a
+ * currency symbol/code, or a keyword like "total" / "Gesamtbetrag" (see
+ * {@link TOTAL_KEYWORDS} and {@link CURRENCIES}, both given). Then:
+ *
+ *   - a line with a total keyword → `high` (prefer the LAST such line: on a
+ *     receipt with both "subtotal" and "grand total", the later one is the one);
  *   - otherwise a line that mentions the currency → `high`;
- *   - otherwise no amount (we would rather fill nothing than guess).
+ *   - otherwise return undefined. Filling nothing beats guessing wrong.
+ *
+ * The `moneyOnLine` and `bestMoney` helpers above are given — they prefer a
+ * value with decimals over a bare integer, and otherwise take the largest.
  */
 export function extractAmount(text: string): Extracted<number> | undefined {
-  const lines = text.split(/\r?\n/);
-  const currencyRe = CURRENCIES.map((c) => c.re.source).join('|');
-  const hasCurrency = new RegExp(currencyRe, 'i');
-
-  let keywordHit: number | undefined;
-  let currencyHit: number | undefined;
-  for (const line of lines) {
-    const isTotal = TOTAL_KEYWORDS.test(line);
-    const isCurrency = hasCurrency.test(line);
-    if (!isTotal && !isCurrency) {
-      continue;
-    }
-    const best = bestMoney(moneyOnLine(line));
-    if (best === undefined) {
-      continue;
-    }
-    if (isTotal && keywordHit === undefined) {
-      keywordHit = best;
-    } else if (isTotal && keywordHit !== undefined) {
-      // Later total lines (e.g. "grand total") tend to be the real one.
-      keywordHit = best;
-    }
-    if (isCurrency && currencyHit === undefined) {
-      currencyHit = best;
-    }
-  }
-
-  const chosen = keywordHit ?? currencyHit;
-  if (chosen === undefined) {
-    return undefined;
-  }
-  return { value: chosen, confidence: 'high' };
+  return undefined;
 }
 
 // =============================================================================
