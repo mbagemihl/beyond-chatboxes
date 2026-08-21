@@ -31,6 +31,7 @@ build-frontend: ## Production build of the Angular app into the backend's static
 	rm -rf $(STATIC_DIR)
 	mkdir -p $(STATIC_DIR)
 	cp -R $(FRONTEND_DIST)/. $(STATIC_DIR)/
+	@touch $(STATIC_DIR)/.gitkeep # tracked placeholder; keep git status clean after builds
 
 build-backend: ## Package the backend (assumes static assets already copied in)
 	cd backend && JAVA_HOME=$(JDK21) ./gradlew bootJar

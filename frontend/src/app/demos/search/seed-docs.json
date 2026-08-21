@@ -1,0 +1,252 @@
+[
+  {
+    "id": "d01",
+    "title": "Beyond the Chatbox: Running Real ML in the Browser",
+    "abstract": "Large models are not the only way to use AI. We run pose estimation, embeddings and OCR entirely client-side with WebGPU and wasm — no server round-trip, no data leaving the device."
+  },
+  {
+    "id": "d02",
+    "title": "WebGPU for the Rest of Us",
+    "abstract": "A gentle tour of the WebGPU API: adapters, devices, compute shaders and buffers. We build a tiny matrix-multiply kernel and watch it run on the GPU straight from JavaScript."
+  },
+  {
+    "id": "d03",
+    "title": "Tiny Transformers, Big Impact",
+    "abstract": "Distilled sentence-embedding models are only a few megabytes yet power semantic search, clustering and recommendations. We benchmark them against their heavyweight cousins."
+  },
+  {
+    "id": "d04",
+    "title": "Taking Care of Yourself: Wellbeing and Burnout in Tech",
+    "abstract": "A candid talk on exhaustion, recognizing when you are unwell, taking time off to recover without guilt, and building teams that protect the health of their engineers."
+  },
+  {
+    "id": "d05",
+    "title": "Semantic Search Without a Vector Database",
+    "abstract": "For thousands of documents you do not need a cluster. Compute embeddings once, keep them in memory, and rank with cosine similarity in a few lines of code."
+  },
+  {
+    "id": "d06",
+    "title": "Signals All the Way Down: Reactive Angular in 2026",
+    "abstract": "Angular's signals turn change detection inside out. We refactor a jittery component tree into fine-grained reactive state and delete our last RxJS subscription."
+  },
+  {
+    "id": "d07",
+    "title": "Kotlin Coroutines Under the Hood",
+    "abstract": "Suspend functions look like magic. We disassemble the continuation-passing transformation the compiler performs and demystify structured concurrency."
+  },
+  {
+    "id": "d08",
+    "title": "Spring Boot 4: What Actually Changed",
+    "abstract": "Renamed starters, Jackson 3, a new baseline JDK. A pragmatic migration guide for teams moving off the end-of-life 3.x line without rewriting the world."
+  },
+  {
+    "id": "d09",
+    "title": "OCR in the Browser with Tesseract.js",
+    "abstract": "Turn a webcam frame into editable text on-device. We cover image preprocessing, language data, and why a threshold pass doubles recognition accuracy."
+  },
+  {
+    "id": "d10",
+    "title": "The Privacy Dividend of On-Device Inference",
+    "abstract": "When the model runs locally, sensitive data never travels. We quantify the latency, cost and trust benefits of keeping inference on the client."
+  },
+  {
+    "id": "d11",
+    "title": "Quantization Demystified",
+    "abstract": "int8, float16, q4 — what do they cost and what do they save? We measure accuracy and speed trade-offs on a laptop GPU and a phone."
+  },
+  {
+    "id": "d12",
+    "title": "Web Workers Are Your Friend",
+    "abstract": "Keep the main thread buttery smooth by moving heavy computation off it. Message passing, transferable objects, and module workers explained with live demos."
+  },
+  {
+    "id": "d13",
+    "title": "Designing for the Colour-Blind",
+    "abstract": "Roughly one in twelve men cannot distinguish your red-green status badges. Practical palette choices, contrast ratios and testing tools for accessible UI."
+  },
+  {
+    "id": "d14",
+    "title": "From REST to gRPC and Back Again",
+    "abstract": "We migrated a fleet of services to gRPC, hit real-world pain, and returned to JSON over HTTP for the public edge. Lessons on protocol choice."
+  },
+  {
+    "id": "d15",
+    "title": "Testing the Untestable: ML in CI",
+    "abstract": "Model outputs are fuzzy, so exact-match assertions fail. We show tolerance-based checks, fixed seeds, and golden-file strategies for reliable pipelines."
+  },
+  {
+    "id": "d16",
+    "title": "The Art of the Live Demo",
+    "abstract": "Everything that can go wrong on stage will. Offline-first assets, warm caches, fallback backends and a calm HUD that shows the machinery working."
+  },
+  {
+    "id": "d17",
+    "title": "Cosine Similarity Is All You Need",
+    "abstract": "A surprisingly deep look at the humblest metric in machine learning: why normalized dot products capture meaning, and where they quietly mislead you."
+  },
+  {
+    "id": "d18",
+    "title": "Streaming Tokens: Building a Chat UI That Feels Fast",
+    "abstract": "Perceived latency beats real latency. Skeletons, optimistic rendering and token streaming make a slow model feel instant to your users."
+  },
+  {
+    "id": "d19",
+    "title": "The Case for Boring Databases",
+    "abstract": "Postgres can do full-text search, JSON, queues and even vectors. Before you add a new datastore, see how far one boring database will carry you."
+  },
+  {
+    "id": "d20",
+    "title": "Edge AI on a Ten-Dollar Microcontroller",
+    "abstract": "Keyword spotting and gesture recognition on hardware with kilobytes of RAM. We squeeze a neural net into a coin-cell-powered board."
+  },
+  {
+    "id": "d21",
+    "title": "Feature Flags Without the Footguns",
+    "abstract": "Flags let you ship on Friday, but stale flags rot your codebase. A discipline for creating, measuring and — crucially — deleting them."
+  },
+  {
+    "id": "d22",
+    "title": "Rendering a Million Points at Sixty FPS",
+    "abstract": "Canvas, WebGL and WebGPU compared for large scatter plots. Instancing, level-of-detail and off-thread layout keep interaction crisp."
+  },
+  {
+    "id": "d23",
+    "title": "Prompt Injection Is the New SQL Injection",
+    "abstract": "Untrusted text reaching a model is an attack surface. We taxonomize injection techniques and the defensive boundaries that actually hold."
+  },
+  {
+    "id": "d24",
+    "title": "The Zen of Zoneless Angular",
+    "abstract": "Dropping zone.js shrinks the bundle and sharpens change detection. We walk through the migration and the mental model that replaces it."
+  },
+  {
+    "id": "d25",
+    "title": "Type-Safe Forms That Users Actually Enjoy",
+    "abstract": "Strictly typed reactive forms catch bugs at compile time and guide validation. We build a multi-step form with zero runtime type surprises."
+  },
+  {
+    "id": "d26",
+    "title": "Observability for the Anxious Engineer",
+    "abstract": "Logs, metrics and traces without drowning in dashboards. What to instrument first, and how to sleep through the night on call."
+  },
+  {
+    "id": "d27",
+    "title": "The Hidden Cost of node_modules",
+    "abstract": "Supply-chain risk, install time and disk churn. We audit a real project's dependency tree and cut it in half without losing features."
+  },
+  {
+    "id": "d28",
+    "title": "Letterboxing, Padding and Other Preprocessing Sins",
+    "abstract": "Garbage in, garbage out: how sloppy image resizing wrecks model accuracy, and the aspect-ratio-preserving pipeline that fixes it."
+  },
+  {
+    "id": "d29",
+    "title": "A Field Guide to Floating Point",
+    "abstract": "Why 0.1 + 0.2 is not 0.3, how NaN propagates, and the rounding modes that bite numerical code. Practical defenses for everyday developers."
+  },
+  {
+    "id": "d30",
+    "title": "Progressive Web Apps Are Back",
+    "abstract": "Installable, offline-capable, push-enabled. Service workers and the cache API turn a website into an app your users keep on their home screen."
+  },
+  {
+    "id": "d31",
+    "title": "Cold Starts and Warm Predictors",
+    "abstract": "A model that loads lazily ruins the first request. We preload weights, warm the inference session at startup, and log the warmup so we trust it."
+  },
+  {
+    "id": "d32",
+    "title": "Explainable Recommendations",
+    "abstract": "Nearest-neighbour search gives you 'why' for free: show the items that pulled a result up. Users trust recommendations they can interrogate."
+  },
+  {
+    "id": "d33",
+    "title": "Camera, Canvas, Compute: The Browser Vision Stack",
+    "abstract": "From getUserMedia to a tensor on the GPU. We assemble a full webcam-to-inference pipeline and handle every permission and fallback along the way."
+  },
+  {
+    "id": "d34",
+    "title": "Debugging WebAssembly Without Losing Your Mind",
+    "abstract": "Source maps, DWARF symbols and console.log across the JS/wasm boundary. Tooling that turns opaque crashes into readable stack traces."
+  },
+  {
+    "id": "d35",
+    "title": "Rate Limiting, Backpressure and Graceful Degradation",
+    "abstract": "When traffic spikes, fail politely. Token buckets, queue depth signals and the art of shedding load before it sheds you."
+  },
+  {
+    "id": "d36",
+    "title": "The Multilingual Web",
+    "abstract": "Internationalization is more than string tables: pluralization, right-to-left layout, and models that understand more than English."
+  },
+  {
+    "id": "d37",
+    "title": "Small Data, Big Models, Careful Fine-Tuning",
+    "abstract": "You rarely need to train from scratch. Adapters and a few hundred labelled examples specialize a base model to your domain cheaply."
+  },
+  {
+    "id": "d38",
+    "title": "Immutable by Default",
+    "abstract": "Val over var, copy over mutate. How a bias toward immutability in Kotlin and TypeScript eliminates a whole class of concurrency bugs."
+  },
+  {
+    "id": "d39",
+    "title": "The Accessibility Tree Is an API",
+    "abstract": "Screen readers consume a structured tree your markup generates. Learn to inspect it, test it, and stop shipping invisible buttons."
+  },
+  {
+    "id": "d40",
+    "title": "Vectorizing Your Documentation",
+    "abstract": "Turn a wiki into a searchable knowledge base with embeddings. Chunking strategies, overlap, and keeping the index fresh as docs change."
+  },
+  {
+    "id": "d41",
+    "title": "GPU Memory Is Not Infinite",
+    "abstract": "Manual tensor lifetimes, buffer reuse and the readback trap. Practical patterns to avoid leaks and out-of-memory crashes in browser ML."
+  },
+  {
+    "id": "d42",
+    "title": "The Ergonomics of Error Handling",
+    "abstract": "Result types, exceptions and the messages your future self will read at 3am. Designing failures that explain themselves."
+  },
+  {
+    "id": "d43",
+    "title": "Benchmarking Honestly",
+    "abstract": "Warmup runs, percentiles not averages, and controlling for thermal throttling. How to publish numbers you will not have to retract."
+  },
+  {
+    "id": "d44",
+    "title": "From Notebook to Production",
+    "abstract": "The messy path from a data scientist's experiment to a service with SLAs. Packaging weights, pinning versions and reproducible builds."
+  },
+  {
+    "id": "d45",
+    "title": "Dark Mode Is a Design System Problem",
+    "abstract": "Two themes double your surface area. Semantic colour tokens, contrast testing and a single source of truth keep both palettes honest."
+  },
+  {
+    "id": "d46",
+    "title": "The Long Tail of Browser Compatibility",
+    "abstract": "WebGPU is not everywhere yet. Feature detection, wasm fallbacks and honest UI badges so users on older machines still get a working app."
+  },
+  {
+    "id": "d47",
+    "title": "Caching Is the Hardest Problem",
+    "abstract": "Invalidation, staleness and the thundering herd. Strategies from HTTP headers to service workers to keep fast things fast and correct."
+  },
+  {
+    "id": "d48",
+    "title": "Ethics of Ambient AI",
+    "abstract": "Always-on cameras and microphones raise hard questions. Consent, on-device processing and data minimization as first-class design constraints."
+  },
+  {
+    "id": "d49",
+    "title": "Reproducible Builds for ML Assets",
+    "abstract": "Pin every model URL and checksum so a build is byte-for-byte repeatable and offline-safe. A download script that fails loudly on drift."
+  },
+  {
+    "id": "d50",
+    "title": "The Joy of Deleting Code",
+    "abstract": "The best pull request is often a red one. How to find dead paths, retire features safely, and celebrate the lines you remove."
+  }
+]

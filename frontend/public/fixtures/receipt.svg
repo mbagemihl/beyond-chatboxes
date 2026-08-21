@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="1040" viewBox="0 0 800 1040">
+  <!--
+    Bundled sample receipt for the smart-form fixture mode (?fixture=1) — the
+    stage fallback when lighting or camera permissions fail. Rendered to the
+    capture canvas and OCR'd exactly like a live camera frame. The values are
+    crafted to exercise every extract-fields heuristic:
+      date 12.06.2026 (dotted, high) · TOTAL EUR 13,50 (keyword+currency, high)
+      DE89… (the classic checksum-valid test IBAN, high) · email (high)
+      vendor from the top line (medium).
+  -->
+  <rect width="800" height="1040" fill="#ffffff"/>
+  <g fill="#111111" font-family="'Courier New', Courier, monospace">
+    <text x="60" y="110" font-size="46" font-weight="bold">Nordlicht Kaffee</text>
+    <text x="60" y="180" font-size="34">Datum: 12.06.2026</text>
+    <text x="60" y="240" font-size="34">------------------------------</text>
+    <text x="60" y="300" font-size="34">2x Cappuccino          7,80</text>
+    <text x="60" y="360" font-size="34">1x Brezel              3,20</text>
+    <text x="60" y="420" font-size="34">1x Espresso            2,50</text>
+    <text x="60" y="480" font-size="34">------------------------------</text>
+    <text x="60" y="550" font-size="40" font-weight="bold">TOTAL EUR 13,50</text>
+    <text x="60" y="640" font-size="32">IBAN DE89 3704 0044 0532 0130 00</text>
+    <text x="60" y="710" font-size="32">rechnung@nordlicht-kaffee.de</text>
+    <text x="60" y="800" font-size="34">Vielen Dank!</text>
+  </g>
+</svg>

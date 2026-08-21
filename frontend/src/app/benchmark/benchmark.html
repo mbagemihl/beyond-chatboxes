@@ -1,0 +1,173 @@
+<section class="bench">
+  <header class="bench__header">
+    <h1>Local vs Cloud — same model, measured</h1>
+    <p class="bench__subtitle">
+      One captured frame, run {{ total() }}× in the browser (LiteRT.js) and {{ total() }}×
+      on the server (DJL · ONNX Runtime), interleaved.
+    </p>
+  </header>
+
+  <div class="bench__grid">
+    <!-- Left: camera preview + controls -->
+    <div class="bench__left">
+      <div class="bench__stage">
+        <video #video class="bench__video" playsinline muted autoplay></video>
+        @if (overlayMessage(); as msg) {
+          <div class="bench__overlay" role="status"><p>{{ msg }}</p></div>
+        }
+      </div>
+
+      <div class="bench__local-badge">
+        <span class="label">local engine</span>
+        <span class="model">{{ modelName }}</span>
+        <span
+          class="badge"
+          [class.badge--gpu]="localBackend() && localBackend() !== 'wasm'"
+          [class.badge--wasm]="localBackend() === 'wasm'"
+        >{{ localBackend() ?? '…' }}</span>
+      </div>
+
+      <div class="bench__controls">
+        <button
+          type="button"
+          class="race"
+          (click)="race()"
+          [disabled]="!canRace()"
+        >
+          @if (phase() === 'running') {
+            Running… {{ progress() }}/{{ total() }}
+          } @else {
+            Race
+          }
+        </button>
+
+        <label class="wan">
+          <span>WAN latency</span>
+          <select
+            [value]="delayMs()"
+            (change)="onDelayChange($any($event.target).value)"
+            [disabled]="phase() === 'running'"
+          >
+            @for (ms of allowedMs(); track ms) {
+              <option [value]="ms">
+                +{{ ms }} ms{{ ms === 0 ? ' (LAN)' : '' }}
+              </option>
+            }
+          </select>
+        </label>
+      </div>
+
+      @if (raceError(); as err) {
+        <p class="bench__error" role="alert">{{ err }}</p>
+      }
+    </div>
+
+    <!-- Right: results -->
+    <div class="bench__right">
+      @if (results(); as r) {
+        <div class="bench__results">
+          @if (chart(); as c) {
+            <svg
+              class="chart"
+              viewBox="0 0 1000 300"
+              role="img"
+              aria-label="Latency distribution: local versus cloud"
+            >
+              <!-- Local -->
+              <text x="12" y="96" class="row-label">local</text>
+              <rect
+                x="150" y="64" height="48" rx="6"
+                class="bar bar--local"
+                [attr.width]="c.local.barW"
+              />
+              <line
+                y1="56" y2="120" class="p95"
+                [attr.x1]="c.local.p95X" [attr.x2]="c.local.p95X"
+              />
+
+              <!-- Cloud -->
+              <text x="12" y="216" class="row-label">cloud</text>
+              @if (c.cloud; as cc) {
+                <rect
+                  x="150" y="184" height="48" rx="6"
+                  class="bar bar--cloud-server"
+                  [attr.width]="cc.serverW"
+                />
+                <rect
+                  y="184" height="48" rx="6"
+                  class="bar bar--cloud-net"
+                  [attr.x]="150 + cc.serverW"
+                  [attr.width]="cc.networkW"
+                />
+                <line
+                  y1="176" y2="240" class="p95"
+                  [attr.x1]="cc.p95X" [attr.x2]="cc.p95X"
+                />
+              } @else {
+                <text x="150" y="216" class="unavailable">cloud tier unavailable</text>
+              }
+
+              <!-- Axis -->
+              <line x1="150" y1="270" x2="950" y2="270" class="axis" />
+              <text x="150" y="292" class="axis-label">0</text>
+              <text x="950" y="292" text-anchor="end" class="axis-label">
+                {{ c.maxMs | number: '1.0-0' }} ms
+              </text>
+            </svg>
+          }
+
+          <div class="legend">
+            <div class="legend__row">
+              <span class="swatch swatch--local"></span>
+              <span class="legend__name">Local</span>
+              <span class="legend__stat">
+                median <strong>{{ r.local.median | number: '1.0-1' }}</strong> ms
+              </span>
+              <span class="legend__stat">
+                p95 <strong>{{ r.local.p95 | number: '1.0-1' }}</strong> ms
+              </span>
+            </div>
+
+            @if (r.cloud; as cloud) {
+              <div class="legend__row">
+                <span class="swatch swatch--cloud-server"></span>
+                <span class="legend__name">Cloud</span>
+                <span class="legend__stat">
+                  median <strong>{{ cloud.total.median | number: '1.0-1' }}</strong> ms
+                </span>
+                <span class="legend__stat">
+                  p95 <strong>{{ cloud.total.p95 | number: '1.0-1' }}</strong> ms
+                </span>
+              </div>
+              <div class="legend__breakdown">
+                <span>
+                  <span class="swatch swatch--cloud-server"></span>
+                  server inference <strong>{{ cloud.server.median | number: '1.0-1' }}</strong> ms
+                </span>
+                <span>
+                  <span class="swatch swatch--cloud-net"></span>
+                  network share <strong>{{ cloud.networkMedianMs | number: '1.0-1' }}</strong> ms
+                </span>
+                <span class="legend__engine">{{ cloud.backend }} · {{ cloud.model }}</span>
+              </div>
+            }
+          </div>
+
+          @if (cloudError(); as err) {
+            <p class="bench__error" role="alert">Cloud tier: {{ err }}</p>
+          }
+        </div>
+      } @else {
+        <div class="bench__placeholder">
+          <p>Strike a pose, then hit <strong>Race</strong>.</p>
+          <p class="hint">
+            Add WAN latency to show the same model “with 100 ms of distance”.
+          </p>
+          @if (cloudError(); as err) {
+            <p class="bench__error" role="alert">Cloud tier: {{ err }}</p>
+          }
+        </div>
+      }
+    </div>
+  </div>
+</section>

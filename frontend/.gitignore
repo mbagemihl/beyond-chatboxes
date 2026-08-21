@@ -29,6 +29,14 @@ yarn-error.log
 !.vscode/mcp.json
 .history/*
 
+# Build-time ML artifacts (fetched by scripts/download-models.sh and the
+# postinstall wasm copy — never committed, never fetched from a CDN at runtime).
+/public/models/
+/public/wasm/
+# Pose fixture clip, also fetched by download-models.sh. The smart-form
+# fixture (receipt.svg) is authored in-repo and IS committed.
+/public/fixtures/pose.webm
+
 # Miscellaneous
 /.angular/cache
 .sass-cache/
@@ -38,6 +46,13 @@ yarn-error.log
 testem.log
 /typings
 __screenshots__/
+
+# Playwright
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
+/e2e/fixtures/camera.y4m
 
 # System files
 .DS_Store
