@@ -58,6 +58,10 @@ the setup gate and not the finale — the finale is where the argument lands.
 
 ## Block 1 — Pixels in, keypoints out (45 min)
 
+```bash
+make step-1
+```
+
 Route: `/pose?fixture=1`. Model: MoveNet SinglePose Lightning, float16 tflite,
 via LiteRT.js.
 
@@ -84,6 +88,10 @@ draw loop; why per-frame work must never touch change detection.
 ---
 
 ## Block 2 — Meaning without a server (40 min)
+
+```bash
+make step-2
+```
 
 Route: `/search`. Model: all-MiniLM-L6-v2 (ONNX), Transformers.js, in a Worker.
 
@@ -112,6 +120,10 @@ report `wasm`. Never write an exercise that asserts a backend.
 ---
 
 ## Block 3 — Reading a document on-device (40 min)
+
+```bash
+make step-3
+```
 
 Route: `/smartform?fixture=1`. Engine: Tesseract.js (wasm) in a Worker.
 
@@ -154,29 +166,60 @@ anything you must not ship to a client.
 
 ## Checkpoint mechanics
 
-**Working today:**
+Four commands are all an attendee needs:
 
-- **`make doctor`** — the setup gate described above.
-- **`make verify-1`**, **`make verify-2`**, **`make verify-3`** — grade one
-  block by running only its specs (19, 17 and 29 tests). This is the oracle:
-  the exercise is done when its tests pass, so attendees unblock themselves
-  instead of queueing at the front.
+```bash
+make doctor      # am I set up?          (run once, before anything)
+make step-1      # start a block         (also -2, -3)
+make verify-1    # am I done?            (also -2, -3)
+make solve-1     # show me the answer    (also -2, -3)
+```
 
-**Still to build:**
+- **`make step-N`** checks out the `step-N-start` tag on a fresh
+  `workshop-step-N` branch and prints which files to edit.
+- **`make verify-N`** runs *only* that block's specs — 19, 17 and 29 tests. This
+  is the oracle: the exercise is done when its tests pass, so attendees unblock
+  themselves instead of queueing at the front.
+- **`make solve-N`** restores the reference implementation from `main`.
 
-- **`step-N-start` / `step-N-done` tags** per block, with `main` staying the
-  complete reference solution.
-- **`make step-N`** — parks any local work on a `workshop-wip-<timestamp>`
-  branch *and says so*, then checks out `step-N-start`. Never let an attendee
-  discover git the hard way; the fallback path is the one that has to be smooth.
-- **`make solve-N`** — jumps to `step-N-done` for anyone who falls behind.
+**Nothing can lose an attendee's work**, which matters more than elegance when
+thirty people are switching checkpoints at once:
 
-Each exercise is made by removing an implementation and keeping its spec. The
-repo already suits this unusually well: the interesting logic lives in pure,
-framework-free modules — `pose-math.ts`, `similarity.ts`, `search-core.ts`,
-`extract-fields.ts` — each with a spec beside it, 90 tests in total. Replace a
-body with a signature and a `TODO`, and the exercise plus its grader already
-exist.
+- uncommitted changes are committed onto a `workshop-wip-<stamp>` branch, and
+  the branch name is printed;
+- an existing `workshop-step-N` branch is *renamed*, never reset, so its commits
+  stay reachable;
+- `solve-N` copies your attempt into `.workshop-backups/<stamp>/` (gitignored)
+  before overwriting it.
+
+Each exercise is a function body removed with its spec left in place, so the
+grader already exists. What each checkpoint leaves failing:
+
+| Tag | Files | Failing at the start |
+|---|---|---|
+| `step-1-start` | `pose-math.ts` | 13 of 19 |
+| `step-2-start` | `similarity.ts`, `search-core.ts` | 6 of 17 |
+| `step-3-start` | `extract-fields.ts` | 11 of 29 |
+
+Only the current block is stubbed — the rest of the app is the finished
+reference, so attendees always see their piece working *in context* and a broken
+unrelated route never generates support questions.
+
+**Maintaining the checkpoints.** The tags are commits branching off the tooling
+commit on `main`; `main` itself always holds the complete solution. If you change
+one of the four exercise modules on `main`, re-cut the affected tag: check out
+the tag, replay your change, `git tag -f step-N-start`, and force-push the tag.
+Three tags is little enough to maintain by hand; freeze the content a week
+before the workshop and re-run the checks below.
+
+**Verifying the checkpoints still work** (do this after any re-cut):
+
+```bash
+git checkout step-N-start
+npx tsc -p frontend/tsconfig.app.json --noEmit   # must be clean: stubs type-check
+make verify-N                                    # must FAIL: the exercise is real
+make solve-N && make verify-N                    # must PASS: the answer is right
+```
 
 ---
 
