@@ -1,6 +1,23 @@
 /**
  * pose-math.ts — pure, framework-free geometry for MoveNet SinglePose.
  *
+ * ┌─────────────────────────────────────────────────────────────────────────┐
+ * │ WORKSHOP BLOCK 1 — Pixels in, keypoints out                             │
+ * │                                                                         │
+ * │ A model is a function from one fixed-shape tensor to another. Almost    │
+ * │ all the real work happens on either side of it: a 640x480 camera frame  │
+ * │ is not a 192x192 tensor, and the model's 51 output numbers are not a    │
+ * │ skeleton until you decode them.                                         │
+ * │                                                                         │
+ * │ Implement the functions marked TODO below.                              │
+ * │   Check your work:  make verify-1                                       │
+ * │   Stuck?            make solve-1                                        │
+ * │                                                                         │
+ * │ The demo runs before you start — it just draws nothing, because every   │
+ * │ keypoint comes back with confidence 0. Watch it come alive.             │
+ * │   http://localhost:4200/pose?fixture=1                                  │
+ * └─────────────────────────────────────────────────────────────────────────┘
+ *
  * This module has NO Angular / DOM / LiteRT dependencies on purpose: every
  * function here is a plain input -> output transform so it can be unit-tested
  * without TestBed (see pose-math.spec.ts). The pose engine and the demo
@@ -119,30 +136,42 @@ export interface Letterbox {
 }
 
 /**
- * Compute the letterbox geometry for fitting `srcW x srcH` into a centered
- * square of side `square`, preserving aspect ratio.
+ * TODO (block 1, core) — Compute the letterbox geometry for fitting
+ * `srcW x srcH` into a centered square of side `square`, preserving aspect
+ * ratio.
+ *
+ * Why this matters: squashing a 4:3 frame into a square would distort every
+ * body it sees, and the model was not trained on distorted people. Instead scale
+ * by the LONG axis so the whole frame fits, then pad the short axis equally on
+ * both sides — the same thing TensorFlow's `resize_with_pad` does.
+ *
+ *   scale     = square / max(srcW, srcH)
+ *   scaledW/H = the source multiplied by that scale
+ *   padX/padY = the leftover space on each axis, split in half
+ *
+ * The stub below stretches the frame to fill the square (scale 1, no padding),
+ * which is exactly the bug this function exists to prevent.
  */
 export function computeLetterbox(
   srcW: number,
   srcH: number,
   square: number = MOVENET_INPUT_SIZE,
 ): Letterbox {
-  const scale = square / Math.max(srcW, srcH);
-  const scaledW = srcW * scale;
-  const scaledH = srcH * scale;
-  return {
-    scale,
-    scaledW,
-    scaledH,
-    padX: (square - scaledW) / 2,
-    padY: (square - scaledH) / 2,
-  };
+  return { scale: 1, scaledW: square, scaledH: square, padX: 0, padY: 0 };
 }
 
 /**
- * Convert a coordinate that is normalized over the padded `square x square`
- * model input back into a coordinate normalized over the original source frame.
- * Inverts {@link computeLetterbox}.
+ * TODO (block 1, core) — Convert a coordinate that is normalized over the padded
+ * `square x square` model input back into a coordinate normalized over the
+ * original source frame. This inverts {@link computeLetterbox}.
+ *
+ * The model reports positions in ITS OWN padded square space. To draw on the
+ * source frame you must undo the padding and the scale, in that order:
+ * multiply the normalized value up to square pixels, subtract the padding, then
+ * divide by the scaled size.
+ *
+ * Get this wrong and the skeleton is subtly offset from the body — the classic
+ * "it almost works" bug of on-device vision.
  */
 export function squareToSourceNorm(
   nx: number,
@@ -151,21 +180,20 @@ export function squareToSourceNorm(
   srcH: number,
   square: number = MOVENET_INPUT_SIZE,
 ): Point {
-  const { scaledW, scaledH, padX, padY } = computeLetterbox(srcW, srcH, square);
-  return {
-    x: (nx * square - padX) / scaledW,
-    y: (ny * square - padY) / scaledH,
-  };
+  return { x: 0, y: 0 };
 }
 
 /**
- * Parse a raw MoveNet SinglePose output tensor into keypoints in source-frame
- * normalized coordinates.
+ * TODO (block 1, core) — Parse a raw MoveNet SinglePose output tensor into
+ * keypoints in source-frame normalized coordinates.
  *
  * The output tensor has shape [1, 1, 17, 3]; flattened it is 51 numbers, three
- * per keypoint in the order **[y, x, score]** (y and x are normalized over the
- * padded square input). This undoes the letterbox so the returned x/y are
- * normalized over the original source frame.
+ * per keypoint in the order **[y, x, score]** — note y comes FIRST, which is the
+ * single most common mistake here. y and x are normalized over the padded square
+ * input, so each pair needs {@link squareToSourceNorm} applied to it.
+ *
+ * Return exactly {@link NUM_KEYPOINTS} keypoints, in model order. The length
+ * guard below is given; keep it.
  */
 export function parseMoveNetOutput(
   raw: ArrayLike<number>,
@@ -178,36 +206,28 @@ export function parseMoveNetOutput(
       `MoveNet output too short: expected ${NUM_KEYPOINTS * 3}, got ${raw.length}`,
     );
   }
+  // Every keypoint scored 0 means nothing is drawn and no angle is computed —
+  // a working app with an empty overlay, until you implement this.
   const keypoints: Keypoint[] = [];
   for (let i = 0; i < NUM_KEYPOINTS; i++) {
-    const ny = raw[i * 3];
-    const nx = raw[i * 3 + 1];
-    const score = raw[i * 3 + 2];
-    const { x, y } = squareToSourceNorm(nx, ny, srcW, srcH, square);
-    keypoints.push({ x, y, score });
+    keypoints.push({ x: 0, y: 0, score: 0 });
   }
   return keypoints;
 }
 
 /**
- * Interior angle, in degrees, at vertex `b` formed by the rays b->a and b->c.
- * Returns a value in [0, 180], or `NaN` if either ray has zero length
- * (degenerate — coincident points).
+ * TODO (block 1, stretch) — Interior angle, in degrees, at vertex `b` formed by
+ * the rays b->a and b->c. Return a value in [0, 180], or `NaN` if either ray has
+ * zero length (degenerate — coincident points).
+ *
+ * The dot product of the two rays, divided by the product of their magnitudes,
+ * is the cosine of the angle between them; `Math.acos` recovers the angle, and
+ * `Math.hypot` gives you a magnitude. Clamp the cosine into [-1, 1] before
+ * calling acos — floating-point drift will otherwise hand you NaN for angles
+ * that are exactly 0 or 180 degrees.
  */
 export function angleABC(a: Point, b: Point, c: Point): number {
-  const ux = a.x - b.x;
-  const uy = a.y - b.y;
-  const vx = c.x - b.x;
-  const vy = c.y - b.y;
-  const uMag = Math.hypot(ux, uy);
-  const vMag = Math.hypot(vx, vy);
-  if (uMag === 0 || vMag === 0) {
-    return NaN;
-  }
-  const cos = (ux * vx + uy * vy) / (uMag * vMag);
-  // Clamp to guard against floating-point drift outside [-1, 1].
-  const clamped = Math.min(1, Math.max(-1, cos));
-  return (Math.acos(clamped) * 180) / Math.PI;
+  return NaN;
 }
 
 /** A computed joint angle plus the confidence we have in it. */
@@ -219,9 +239,15 @@ export interface JointAngle {
 }
 
 /**
- * Compute the angle at `bIdx` formed by keypoints `aIdx`-`bIdx`-`cIdx`.
- * Returns `null` when any of the three keypoints is below `minScore`, so the
- * UI can show "—" instead of a misleading number from an unreliable keypoint.
+ * TODO (block 1, stretch) — Compute the angle at `bIdx` formed by keypoints
+ * `aIdx`-`bIdx`-`cIdx`.
+ *
+ * Return `null` when any of the three keypoints is missing or below `minScore`,
+ * so the UI shows "—" instead of a confident-looking number derived from a
+ * keypoint the model was unsure about. Refusing to answer is a feature: this is
+ * the difference between a demo that lies and one you can trust.
+ *
+ * The confidence of the angle is the weakest of its three keypoints.
  */
 export function jointAngle(
   keypoints: Keypoints,
@@ -230,21 +256,7 @@ export function jointAngle(
   cIdx: number,
   minScore = 0.3,
 ): JointAngle | null {
-  const a = keypoints[aIdx];
-  const b = keypoints[bIdx];
-  const c = keypoints[cIdx];
-  if (!a || !b || !c) {
-    return null;
-  }
-  const confidence = Math.min(a.score, b.score, c.score);
-  if (confidence < minScore) {
-    return null;
-  }
-  const degrees = angleABC(a, b, c);
-  if (Number.isNaN(degrees)) {
-    return null;
-  }
-  return { degrees, confidence };
+  return null;
 }
 
 /**
@@ -259,36 +271,12 @@ export interface BodyAngles {
   readonly rightKnee: JointAngle | null;
 }
 
-/** Compute both elbow and both knee angles from a set of keypoints. */
+/**
+ * TODO (block 1, stretch) — Compute both elbow and both knee angles from a set
+ * of keypoints, using {@link jointAngle} and the {@link KEYPOINT} indices.
+ *
+ * An elbow is shoulder-elbow-wrist; a knee is hip-knee-ankle.
+ */
 export function computeBodyAngles(keypoints: Keypoints, minScore = 0.3): BodyAngles {
-  return {
-    leftElbow: jointAngle(
-      keypoints,
-      KEYPOINT.leftShoulder,
-      KEYPOINT.leftElbow,
-      KEYPOINT.leftWrist,
-      minScore,
-    ),
-    rightElbow: jointAngle(
-      keypoints,
-      KEYPOINT.rightShoulder,
-      KEYPOINT.rightElbow,
-      KEYPOINT.rightWrist,
-      minScore,
-    ),
-    leftKnee: jointAngle(
-      keypoints,
-      KEYPOINT.leftHip,
-      KEYPOINT.leftKnee,
-      KEYPOINT.leftAnkle,
-      minScore,
-    ),
-    rightKnee: jointAngle(
-      keypoints,
-      KEYPOINT.rightHip,
-      KEYPOINT.rightKnee,
-      KEYPOINT.rightAnkle,
-      minScore,
-    ),
-  };
+  return { leftElbow: null, rightElbow: null, leftKnee: null, rightKnee: null };
 }
