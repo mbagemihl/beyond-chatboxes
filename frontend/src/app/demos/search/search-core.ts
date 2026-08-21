@@ -28,11 +28,18 @@ export function docText(doc: Doc): string {
 }
 
 /**
- * Rank documents by cosine similarity of their precomputed embeddings against a
- * query embedding. Pure: callers supply the vectors; this never touches a model.
+ * TODO (block 2, core) — Rank documents by cosine similarity of their
+ * precomputed embeddings against a query embedding.
  *
- * `docVectors[i]` must be the embedding of `docs[i]` (same order, same length as
- * `queryVector`). Results are sorted high-to-low and truncated to `topK`.
+ * This is the whole search engine: score every document, sort by score
+ * descending, keep the best `topK`. There is no index and no server — for a
+ * corpus this size, a linear scan over a few hundred vectors is microseconds.
+ * That is the point worth taking home: "semantic search" does not require
+ * infrastructure until your corpus is genuinely large.
+ *
+ * `docVectors[i]` is the embedding of `docs[i]` (same order, same length as
+ * `queryVector`). Use {@link cosineSimilarity} for the scoring; a negative
+ * `topK` must yield an empty array, not a crash.
  */
 export function rankBySimilarity(
   queryVector: readonly number[],
@@ -40,12 +47,7 @@ export function rankBySimilarity(
   docVectors: readonly (readonly number[])[],
   topK: number,
 ): ScoredDoc[] {
-  const scored = docs.map((doc, i) => ({
-    doc,
-    score: cosineSimilarity(queryVector, docVectors[i]),
-  }));
-  scored.sort((a, b) => b.score - a.score);
-  return scored.slice(0, Math.max(0, topK));
+  return [];
 }
 
 /**
