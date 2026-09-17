@@ -8,11 +8,32 @@ JDK21 ?= $(HOME)/.sdkman/candidates/java/21.0.2-open
 FRONTEND_DIST := frontend/dist/frontend/browser
 STATIC_DIR    := backend/src/main/resources/static
 
-.PHONY: help dev-frontend dev-backend build build-frontend build-backend test test-frontend test-backend clean
+.PHONY: help doctor step-% verify-% solve-% dev-frontend dev-backend build build-frontend build-backend test test-frontend test-backend clean
 
 help: ## List available targets
-	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
+	@grep -E '^[a-zA-Z_%-]+:.*?## .*$$' $(MAKEFILE_LIST) \
 		| sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-16s\033[0m %s\n", $$1, $$2}'
+
+## --- Workshop ---
+
+# Spec files that grade each exercise block (see WORKSHOP.md). `verify-N` runs
+# ONLY that block's tests, so an attendee gets a fast, unambiguous "done yet?"
+# instead of a wall of unrelated results.
+VERIFY_1 := --include=**/pose-math.spec.ts
+VERIFY_2 := --include=**/similarity.spec.ts --include=**/search-core.spec.ts
+VERIFY_3 := --include=**/extract-fields.spec.ts
+
+doctor: ## Check this machine is ready for the workshop (run this first)
+	@scripts/doctor.sh
+
+step-%: ## Start an exercise block: make step-1 (or -2, -3)
+	@scripts/workshop-step.sh step $*
+
+verify-%: ## Grade one exercise block: make verify-1 (or -2, -3)
+	cd frontend && npx ng test --no-watch $(VERIFY_$*)
+
+solve-%: ## Reveal one block's solution: make solve-1 (or -2, -3)
+	@scripts/workshop-step.sh solve $*
 
 ## --- Development (run in two terminals) ---
 

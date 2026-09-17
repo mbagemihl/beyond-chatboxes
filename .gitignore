@@ -12,6 +12,9 @@
 /scripts/.venv-onnx/
 /scripts/.convert-*.log
 
+# Attendee attempts copied aside by `make solve-N` (scripts/workshop-step.sh)
+/.workshop-backups/
+
 # OS / editor noise
 .DS_Store
 Thumbs.db
