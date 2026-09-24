@@ -97,22 +97,21 @@ const SYSTEM_PROMPT =
 const MAX_UNSURE_WORDS = 20;
 
 /**
- * The user turn sent to the model: the OCR text between explicit delimiters
- * (it is untrusted input — a receipt can say "ignore previous instructions"),
- * followed by the words the OCR model was unsure about, so the language model
- * knows which characters to doubt ("0" vs "O", "1" vs "l"). The uncertainty
- * section is omitted when every word was read confidently.
+ * TODO (bonus ocr, stretch) — The user turn sent to the language model.
+ *
+ * Two jobs:
+ *   1. Fence the OCR text off as DATA. A receipt can literally say "ignore
+ *      previous instructions"; delimiters make the boundary explicit. Format
+ *      the specs expect (text trimmed):
+ *        Receipt OCR text:\n<<<\n{text}\n>>>
+ *   2. Tell the model which words the OCR model doubted (confidence below
+ *      LOW_BELOW), so it knows which characters to question ("lx" is probably
+ *      "1x"). Append, only when there are any:
+ *        \n\nThe OCR engine was unsure about these words, they may be misread: "lx" (51%), ...
+ *      Round the confidence, skip blank words, list at most MAX_UNSURE_WORDS.
  */
 export function buildPromptInput(text: string, words: readonly OcrWord[]): string {
-  const input = `Receipt OCR text:\n<<<\n${text.trim()}\n>>>`;
-  const unsure = words
-    .filter((w) => w.confidence < LOW_BELOW && w.text.trim().length > 0)
-    .slice(0, MAX_UNSURE_WORDS)
-    .map((w) => `"${w.text}" (${Math.round(w.confidence)}%)`);
-  if (unsure.length === 0) {
-    return input;
-  }
-  return `${input}\n\nThe OCR engine was unsure about these words, they may be misread: ${unsure.join(', ')}`;
+  return text;
 }
 
 /**
@@ -148,93 +147,41 @@ export async function mapFieldsWithPromptApi(
 }
 
 /**
- * Validate the model's reply. Takes the first `{…}` span (models like to wrap
- * JSON in prose or code fences when unconstrained), parses it, and checks it
- * against {@link PromptReplySchema} — keys may be missing, but a key that is
- * present must have the right type, or the WHOLE reply is rejected: a model
- * that returned `amount: "about twelve"` is not trusted for the other fields
- * either. Unknown keys are ignored, nulls and blank strings dropped, and the
- * amount is returned as a string like every other field.
+ * TODO (bonus ocr, stretch) — Validate the model's reply. A language model's JSON
+ * is untrusted input, exactly like a form post.
+ *
+ *   1. Take the first `{` … last `}` span (unconstrained models like to wrap
+ *      JSON in prose or code fences) and JSON.parse it; on failure return {}.
+ *   2. Check it with `PromptReplySchema.partial().safeParse(...)`: keys may be
+ *      missing, but a key that IS present must have the right type — otherwise
+ *      reject the WHOLE reply ({}). A model that returned
+ *      `amount: "about twelve"` is not trusted for the other fields either.
+ *   3. Drop nulls and blank strings; return every value as a trimmed string
+ *      (the amount too: 42.5 → "42.5"). Unknown keys never appear, zod strips
+ *      them.
  */
 export function parsePromptJson(raw: string): PromptFields {
-  const start = raw.indexOf('{');
-  const end = raw.lastIndexOf('}');
-  if (start === -1 || end <= start) {
-    return {};
-  }
-  let json: unknown;
-  try {
-    json = JSON.parse(raw.slice(start, end + 1));
-  } catch {
-    return {};
-  }
-  const reply = PromptReplySchema.partial().safeParse(json);
-  if (!reply.success) {
-    return {};
-  }
-  const out: PromptFields = {};
-  for (const [key, value] of Object.entries(reply.data) as [FieldKey, string | number | null][]) {
-    const text = value === null ? '' : String(value).trim();
-    if (text.length > 0) {
-      out[key] = text;
-    }
-  }
-  return out;
+  return {};
 }
 
 /**
- * Merge model output into the heuristic result — pure, so it is unit-testable
- * without the browser API. The contract enforces "proactive, never destructive":
+ * TODO (bonus ocr, stretch) — Merge model output into the heuristic result: the
+ * trust policy. "Proactive, never destructive":
  *
  *   - a `high`-confidence heuristic value is NEVER overridden by the model;
- *   - the model only fills fields the heuristic left empty (or only guessed at
- *     with `low`/`medium` confidence, e.g. vendor);
- *   - model-supplied values are re-validated with the same pure checks (IBAN
- *     checksum, date/amount normalization) so a hallucination cannot slip in.
- *
- * Model-derived values are tagged `medium` — trustworthy enough to propose,
- * honest that a language model produced them.
+ *   - otherwise the model may fill or replace a field — but only after its
+ *     value passes the same checks the heuristics use, so a hallucination
+ *     cannot slip in:
+ *       date     → normalize with `extractDate` (drop it if that fails)
+ *       amount   → a finite number > 0 (accept "12,50" as well as "12.50")
+ *       currency → uppercase, exactly three letters
+ *       iban     → strip spaces, uppercase, must pass `isValidIban`
+ *       email    → looks like local@domain.tld, stored lowercase
+ *       vendor   → any non-empty string (the heuristic's weakest field, and
+ *                  where the model helps most)
+ *   - every model-supplied value is tagged `medium`: good enough to propose,
+ *     honest that a language model produced it.
  */
 export function mergeFields(heuristic: ExtractedFields, ai: PromptFields): ExtractedFields {
-  const merged: {
-    -readonly [K in keyof ExtractedFields]: ExtractedFields[K];
-  } = { ...heuristic };
-  const AI: Confidence = 'medium';
-
-  const canOverride = (key: FieldKey): boolean => heuristic[key]?.confidence !== 'high';
-
-  if (ai.date && canOverride('date')) {
-    const normalized = extractDate(ai.date);
-    if (normalized) {
-      merged.date = { value: normalized.value, confidence: AI };
-    }
-  }
-  if (ai.amount && canOverride('amount')) {
-    const n = Number(ai.amount.replace(',', '.'));
-    if (Number.isFinite(n) && n > 0) {
-      merged.amount = { value: n, confidence: AI };
-    }
-  }
-  if (ai.currency && canOverride('currency')) {
-    const code = ai.currency.toUpperCase();
-    if (/^[A-Z]{3}$/.test(code)) {
-      merged.currency = { value: code, confidence: AI };
-    }
-  }
-  if (ai.iban && canOverride('iban')) {
-    const compact = ai.iban.replace(/\s+/g, '').toUpperCase();
-    if (isValidIban(compact)) {
-      merged.iban = { value: compact, confidence: AI };
-    }
-  }
-  if (ai.email && canOverride('email') && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(ai.email)) {
-    merged.email = { value: ai.email.toLowerCase(), confidence: AI };
-  }
-  // Vendor is the heuristic's weakest field, so the model is allowed to replace
-  // anything below `high` here — this is where it helps most.
-  if (ai.vendor && canOverride('vendor')) {
-    merged.vendor = { value: ai.vendor, confidence: AI };
-  }
-
-  return merged;
+  return { ...heuristic };
 }
