@@ -22,13 +22,8 @@ import { CameraService } from '../pose/camera.service';
 import { OcrService } from './ocr.service';
 import { NetworkMonitorService } from './network-monitor.service';
 import { SmartformHud } from './smartform-hud/smartform-hud';
-import {
-  Confidence,
-  ExtractedFields,
-  FieldKey,
-  extractFields,
-  isValidIban,
-} from './extract-fields';
+import { Confidence, ExtractedFields, FieldKey, isValidIban } from './extract-fields';
+import { extractFieldsFromOcr } from './ocr-layout';
 import { isPromptApiAvailable, mapFieldsWithPromptApi, mergeFields } from './prompt-api';
 
 /** Currencies the form's <select> offers (matches the extractor's ISO codes). */
@@ -64,8 +59,9 @@ function ibanValidator(control: AbstractControl<string>): ValidationErrors | nul
  * The smart-form demo. On the left, a plain expense report built with strictly
  * Typed Reactive Forms; on the right, a live camera and a "Scan document"
  * button. Scanning grabs a frame, OCRs it entirely on-device (Tesseract.js in a
- * worker), maps the text to fields with the pure {@link extractFields}
- * heuristics (optionally refined by Chrome's on-device Prompt API), and patches
+ * worker), maps the text and word layout to fields with the pure
+ * {@link extractFieldsFromOcr} (optionally refined by Chrome's on-device Prompt
+ * API), and patches
  * the form — but ONLY fields the user has not already edited, each tagged with a
  * confidence badge. "Proactive, never destructive."
  *
@@ -91,8 +87,7 @@ export class Smartform {
   private readonly fixtureImgRef = viewChild<ElementRef<HTMLImageElement>>('fixtureImg');
 
   /** `?fixture=1` — scan a bundled sample receipt instead of the live camera. */
-  protected readonly fixtureMode =
-    this.route.snapshot.queryParamMap.get('fixture') === '1';
+  protected readonly fixtureMode = this.route.snapshot.queryParamMap.get('fixture') === '1';
   /** Set once the bundled receipt image has decoded (enables the scan button). */
   protected readonly fixtureReady = signal(false);
   /** Clear message when the bundled receipt fails to load — never a blank stage. */
@@ -214,7 +209,9 @@ export class Smartform {
     }
     const canvas = this.captureRef().nativeElement;
     // Scan source: the bundled receipt image in fixture mode, else the camera.
-    const source = this.fixtureMode ? this.fixtureImgRef()?.nativeElement : this.videoRef().nativeElement;
+    const source = this.fixtureMode
+      ? this.fixtureImgRef()?.nativeElement
+      : this.videoRef().nativeElement;
     if (!source) {
       return;
     }
@@ -237,9 +234,9 @@ export class Smartform {
       this.recognizedText.set(result.text.trim());
       this.ocrConfidence.set(result.confidence);
 
-      let fields = extractFields(result.text);
+      let fields = extractFieldsFromOcr(result.text, result.words);
       if (this.promptApiActive()) {
-        const ai = await mapFieldsWithPromptApi(result.text);
+        const ai = await mapFieldsWithPromptApi(result.text, result.words);
         fields = mergeFields(fields, ai);
       }
       this.applyExtraction(fields);

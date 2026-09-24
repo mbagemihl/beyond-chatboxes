@@ -241,6 +241,14 @@ function bestMoney(hits: readonly MoneyHit[]): number | undefined {
   return pool.reduce((max, h) => (h.value > max ? h.value : max), pool[0].value);
 }
 
+/**
+ * The amount a snippet of text most plausibly states — a decimal amount if one
+ * is present, otherwise the largest integer. Undefined when it has no numbers.
+ */
+export function moneyIn(text: string): number | undefined {
+  return bestMoney(moneyOnLine(text));
+}
+
 /** Detect the currency mentioned anywhere in the text, if any. */
 export function extractCurrency(text: string): Extracted<string> | undefined {
   for (const { re, code } of CURRENCIES) {
