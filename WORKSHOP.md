@@ -218,7 +218,7 @@ make solve-1     # show me the answer    (also -2, -3)
 
 - **`make step-N`** checks out the `step-N-start` tag on a fresh
   `workshop-step-N` branch and prints which files to edit.
-- **`make verify-N`** runs *only* that block's specs — 19, 17 and 29 tests. This
+- **`make verify-N`** runs *only* that block's specs — 19, 23 and 37 tests. This
   is the oracle: the exercise is done when its tests pass, so attendees unblock
   themselves instead of queueing at the front.
 - **`make solve-N`** restores the reference implementation from `main`.
@@ -239,8 +239,8 @@ grader already exists. What each checkpoint leaves failing:
 | Tag | Files | Failing at the start |
 |---|---|---|
 | `step-1-start` | `pose-math.ts` | 13 of 19 |
-| `step-2-start` | `similarity.ts`, `search-core.ts` | 6 of 17 |
-| `step-3-start` | `extract-fields.ts` | 11 of 29 |
+| `step-2-start` | `pooling.ts`, `similarity.ts` | 13 of 23 (1 of them stretch) |
+| `step-3-start` | `ocr-layout.ts`, `prompt-api.ts` | 22 of 37 (9 of them stretch) |
 
 Only the current block is stubbed — the rest of the app is the finished
 reference, so attendees always see their piece working *in context* and a broken
@@ -248,10 +248,19 @@ unrelated route never generates support questions.
 
 **Maintaining the checkpoints.** The tags are commits branching off the tooling
 commit on `main`; `main` itself always holds the complete solution. If you change
-one of the four exercise modules on `main`, re-cut the affected tag: check out
+one of the five exercise modules on `main`, re-cut the affected tag: check out
 the tag, replay your change, `git tag -f step-N-start`, and force-push the tag.
 Three tags is little enough to maintain by hand; freeze the content a week
 before the workshop and re-run the checks below.
+
+Two graders replay recorded model output instead of hand-made numbers. If you
+change the model, its weights or the bundled receipt, regenerate them from
+`frontend/` and commit the JSON:
+
+```bash
+node scripts/generate-pooling-fixture.mjs   # search/pooling.fixture.json
+node scripts/generate-ocr-fixture.mjs       # smartform/ocr-layout.fixture.json
+```
 
 **Verifying the checkpoints still work** (do this after any re-cut):
 
