@@ -20,8 +20,8 @@ help: ## List available targets
 # ONLY that block's tests, so an attendee gets a fast, unambiguous "done yet?"
 # instead of a wall of unrelated results.
 VERIFY_1 := --include=**/pose-math.spec.ts
-VERIFY_2 := --include=**/similarity.spec.ts --include=**/search-core.spec.ts
-VERIFY_3 := --include=**/extract-fields.spec.ts
+VERIFY_2 := --include=**/pooling.spec.ts --include=**/similarity.spec.ts
+VERIFY_3 := --include=**/ocr-layout.spec.ts --include=**/prompt-api.spec.ts
 
 doctor: ## Check this machine is ready for the workshop (run this first)
 	@scripts/doctor.sh

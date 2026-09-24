@@ -1,5 +1,6 @@
 import { Injectable, signal } from '@angular/core';
-import { OEM, createWorker, type ImageLike, type Worker } from 'tesseract.js';
+import { OEM, createWorker, type ImageLike, type Page, type Worker } from 'tesseract.js';
+import type { OcrWord } from './ocr-layout';
 
 /**
  * OCR lifecycle surfaced to the UI. `loading` = spinning up the worker + core;
@@ -26,6 +27,8 @@ export interface OcrResult {
   readonly text: string;
   /** Tesseract's mean word confidence for the page, 0–100. */
   readonly confidence: number;
+  /** Every recognized word with its own confidence and position on the page. */
+  readonly words: readonly OcrWord[];
   /** Wall-clock recognition time in milliseconds. */
   readonly ms: number;
 }
@@ -129,12 +132,14 @@ export class OcrService {
     this.progressSignal.set(0);
     try {
       const t0 = performance.now();
-      const { data } = await worker.recognize(image);
+      // `blocks: true` asks for the layout tree, not just the flat text: that
+      // is where per-word confidence and bounding boxes live.
+      const { data } = await worker.recognize(image, {}, { text: true, blocks: true });
       const ms = performance.now() - t0;
       this.lastMsSignal.set(ms);
       this.progressSignal.set(1);
       this.statusSignal.set('ready');
-      return { text: data.text, confidence: data.confidence, ms };
+      return { text: data.text, confidence: data.confidence, words: wordsOf(data), ms };
     } catch (err) {
       this.fail(`OCR failed: ${this.messageOf(err)}`);
       throw err instanceof Error ? err : new Error(String(err));
@@ -158,4 +163,20 @@ export class OcrService {
   private messageOf(err: unknown): string {
     return err instanceof Error ? err.message : String(err);
   }
+}
+
+/** Flatten Tesseract's block → paragraph → line → word tree into its words. */
+function wordsOf(page: Page): OcrWord[] {
+  const words: OcrWord[] = [];
+  for (const block of page.blocks ?? []) {
+    for (const paragraph of block.paragraphs) {
+      for (const line of paragraph.lines) {
+        for (const word of line.words) {
+          const { x0, y0, x1, y1 } = word.bbox;
+          words.push({ text: word.text, confidence: word.confidence, bbox: { x0, y0, x1, y1 } });
+        }
+      }
+    }
+  }
+  return words;
 }

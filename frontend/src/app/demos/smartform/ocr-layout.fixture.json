@@ -1,0 +1,265 @@
+{
+ "text": "Nordlicht Kaffee\n\nDatum: 12.06.2026\n\n2x Cappuccino 7,80\n\n1x Brezel 3,20\n\nlx Espresso 2,50\n\nTOTAL EUR 13,50\n\nIBAN DE89 3704 0044 0532 0130 00\nrechnung@nordlicht-kaffee.de\nVielen Dank!\n",
+ "words": [
+  {
+   "text": "Nordlicht",
+   "confidence": 91,
+   "bbox": {
+    "x0": 59,
+    "y0": 80,
+    "x1": 308,
+    "y1": 111
+   }
+  },
+  {
+   "text": "Kaffee",
+   "confidence": 96,
+   "bbox": {
+    "x0": 336,
+    "y0": 80,
+    "x1": 500,
+    "y1": 111
+   }
+  },
+  {
+   "text": "Datum:",
+   "confidence": 96,
+   "bbox": {
+    "x0": 63,
+    "y0": 160,
+    "x1": 175,
+    "y1": 181
+   }
+  },
+  {
+   "text": "12.06.2026",
+   "confidence": 95,
+   "bbox": {
+    "x0": 206,
+    "y0": 158,
+    "x1": 404,
+    "y1": 180
+   }
+  },
+  {
+   "text": "2x",
+   "confidence": 96,
+   "bbox": {
+    "x0": 63,
+    "y0": 278,
+    "x1": 99,
+    "y1": 300
+   }
+  },
+  {
+   "text": "Cappuccino",
+   "confidence": 96,
+   "bbox": {
+    "x0": 123,
+    "y0": 278,
+    "x1": 323,
+    "y1": 306
+   }
+  },
+  {
+   "text": "7,80",
+   "confidence": 96,
+   "bbox": {
+    "x0": 349,
+    "y0": 278,
+    "x1": 424,
+    "y1": 305
+   }
+  },
+  {
+   "text": "1x",
+   "confidence": 93,
+   "bbox": {
+    "x0": 64,
+    "y0": 339,
+    "x1": 99,
+    "y1": 360
+   }
+  },
+  {
+   "text": "Brezel",
+   "confidence": 92,
+   "bbox": {
+    "x0": 123,
+    "y0": 339,
+    "x1": 241,
+    "y1": 361
+   }
+  },
+  {
+   "text": "3,20",
+   "confidence": 96,
+   "bbox": {
+    "x0": 267,
+    "y0": 338,
+    "x1": 342,
+    "y1": 365
+   }
+  },
+  {
+   "text": "lx",
+   "confidence": 51,
+   "bbox": {
+    "x0": 64,
+    "y0": 399,
+    "x1": 99,
+    "y1": 420
+   }
+  },
+  {
+   "text": "Espresso",
+   "confidence": 96,
+   "bbox": {
+    "x0": 123,
+    "y0": 400,
+    "x1": 282,
+    "y1": 426
+   }
+  },
+  {
+   "text": "2,50",
+   "confidence": 96,
+   "bbox": {
+    "x0": 307,
+    "y0": 398,
+    "x1": 383,
+    "y1": 425
+   }
+  },
+  {
+   "text": "TOTAL",
+   "confidence": 96,
+   "bbox": {
+    "x0": 61,
+    "y0": 525,
+    "x1": 179,
+    "y1": 551
+   }
+  },
+  {
+   "text": "EUR",
+   "confidence": 95,
+   "bbox": {
+    "x0": 204,
+    "y0": 526,
+    "x1": 277,
+    "y1": 551
+   }
+  },
+  {
+   "text": "13,50",
+   "confidence": 96,
+   "bbox": {
+    "x0": 303,
+    "y0": 524,
+    "x1": 417,
+    "y1": 556
+   }
+  },
+  {
+   "text": "IBAN",
+   "confidence": 92,
+   "bbox": {
+    "x0": 63,
+    "y0": 621,
+    "x1": 136,
+    "y1": 640
+   }
+  },
+  {
+   "text": "DE89",
+   "confidence": 92,
+   "bbox": {
+    "x0": 158,
+    "y0": 620,
+    "x1": 230,
+    "y1": 640
+   }
+  },
+  {
+   "text": "3704",
+   "confidence": 96,
+   "bbox": {
+    "x0": 255,
+    "y0": 620,
+    "x1": 325,
+    "y1": 640
+   }
+  },
+  {
+   "text": "0044",
+   "confidence": 95,
+   "bbox": {
+    "x0": 351,
+    "y0": 620,
+    "x1": 421,
+    "y1": 640
+   }
+  },
+  {
+   "text": "0532",
+   "confidence": 96,
+   "bbox": {
+    "x0": 447,
+    "y0": 620,
+    "x1": 517,
+    "y1": 640
+   }
+  },
+  {
+   "text": "0130",
+   "confidence": 96,
+   "bbox": {
+    "x0": 543,
+    "y0": 620,
+    "x1": 614,
+    "y1": 640
+   }
+  },
+  {
+   "text": "00",
+   "confidence": 95,
+   "bbox": {
+    "x0": 639,
+    "y0": 620,
+    "x1": 671,
+    "y1": 640
+   }
+  },
+  {
+   "text": "rechnung@nordlicht-kaffee.de",
+   "confidence": 88,
+   "bbox": {
+    "x0": 63,
+    "y0": 689,
+    "x1": 595,
+    "y1": 716
+   }
+  },
+  {
+   "text": "Vielen",
+   "confidence": 96,
+   "bbox": {
+    "x0": 60,
+    "y0": 778,
+    "x1": 181,
+    "y1": 801
+   }
+  },
+  {
+   "text": "Dank!",
+   "confidence": 96,
+   "bbox": {
+    "x0": 205,
+    "y0": 778,
+    "x1": 297,
+    "y1": 801
+   }
+  }
+ ]
+}

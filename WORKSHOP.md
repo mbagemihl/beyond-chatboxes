@@ -46,8 +46,8 @@ by design — that is the whole point of the topic.
 | 0:15–0:25 | **Why local** | Presenter runs the finished demos. Privacy, latency, cost, offline |
 | 0:25–1:10 | **Block 1 — Pixels in, keypoints out** | Pose estimation: pre/post-processing |
 | 1:10–1:20 | Break | |
-| 1:20–2:00 | **Block 2 — Meaning without a server** | Embeddings in a Web Worker |
-| 2:00–2:40 | **Block 3 — Reading a document on-device** | OCR to structured data |
+| 1:20–2:00 | **Block 2 — Meaning without a server** | Token vectors → sentence embeddings |
+| 2:00–2:40 | **Block 3 — Reading a document on-device** | OCR layout + confidence, LLM refinement |
 | 2:40–2:55 | **Finale — Local vs cloud** | Presenter-led benchmark, latency injection |
 | 2:55–3:00 | Close | When to choose local, and when not to |
 
@@ -95,27 +95,40 @@ make step-2
 
 Route: `/search`. Model: all-MiniLM-L6-v2 (ONNX), Transformers.js, in a Worker.
 
-The lesson: embeddings turn text into geometry, and 384 floats per document is
-enough to beat keyword search — with no index server anywhere. Also the reason
-the model lives in a Worker: a 21 MB model compiling on the main thread freezes
-the UI, and attendees can *feel* the difference.
+The lesson: an embedding model does not output "an embedding". It outputs one
+384-dim vector **per token**, padded so the batch is rectangular, and turning
+that into one vector per sentence is part of the model's contract. The worker
+calls the tokenizer and model directly (no one-line `pipeline()`), so this step
+is visible and belongs to the attendee. Get it wrong and nothing crashes: the
+rankings just quietly get worse. That is what model-integration bugs look like.
 
-**Core**:
+**Warm-up (5 min)** — `similarity.ts` → `cosineSimilarity`.
 
-- `similarity.ts` → `cosineSimilarity`
-- `search-core.ts` → `rankBySimilarity` (top-K over the corpus)
+**Core** — implement in `pooling.ts`:
+
+- `meanPool` — average the token vectors using the attention mask, so padding
+  never counts. The mask arrives as a `BigInt64Array`, just as the tokenizer
+  produces it.
+- `l2Normalize` — unit length, so documents compete on direction, not length
+
+Grader: besides hand-built cases, `pooling.spec.ts` replays a **recorded real
+forward pass** (`pooling.fixture.json`) and requires the output to match
+Transformers.js' own `pooling: 'mean', normalize: true`. It also proves the mask
+matters: pooling the padding too moves the short sentence's vector measurably.
 
 Checkpoint: a query with no shared words with its best match still ranks it
 first — compare against the keyword baseline already in the UI.
 
-**Stretch**: keep the query embedding warm and re-rank as you type; explain why
-the sequence guard in the component prevents a slow response overwriting a newer
-query.
+**Stretch**: `embeddingCandidates` — choose the (backend, weights) order: WebGPU
+with fp32, wasm with q8. Then reopen the HUD and explain which one your laptop
+picked.
 
-**Talking points**: quantization as a deployment decision, not a detail — the
-worker asks for `fp32` on WebGPU and `q8` on wasm, a 4× size difference for a
-small quality cost. Expect a mixed room: some laptops report `webgpu`, most
-report `wasm`. Never write an exercise that asserts a backend.
+**Talking points**: quantization as a deployment decision, not a detail — fp32 on
+WebGPU (int8 only partially delegates to the GPU) and q8 on wasm, a 4× size
+difference for a small quality cost. Pooling as part of the model's contract:
+all-MiniLM was trained with mean pooling; CLS pooling would run fine and rank
+worse. Expect a mixed room: some laptops report `webgpu`, most report `wasm`.
+Never write an exercise that asserts a backend.
 
 ---
 
@@ -125,27 +138,55 @@ report `wasm`. Never write an exercise that asserts a backend.
 make step-3
 ```
 
-Route: `/smartform?fixture=1`. Engine: Tesseract.js (wasm) in a Worker.
+Route: `/smartform?fixture=1`. Engine: Tesseract.js (wasm) in a Worker, plus
+the optional on-device language model (Chrome Prompt API).
 
-The lesson: OCR gives you a wall of noisy text; the value is in what you do with
-it. And the privacy argument is visible on screen — the **0 bytes uploaded**
-counter next to a scanned document is the most persuasive thing in the workshop.
+The lesson: `data.text` is the least useful thing the OCR model gives you. It
+also reports **where** every word sits and **how sure** it was about each one.
+On real receipts, Tesseract often splits a two-column layout into separate text
+blocks, so "Total" and "11,00" end up lines apart. And flat text looks equally
+certain everywhere: the bundled scan reads "1x" as `lx` at 51% confidence, and
+nothing in the text tells you that. The privacy argument stays on screen: the
+**0 bytes uploaded** counter next to a scanned document.
 
-**Core** — implement in `extract-fields.ts`:
+The string heuristics (`parseMoney`, `isValidIban`, date and vendor rules) are
+given. They are ordinary business logic, not what this block is about.
 
-- `parseMoney` — `1.234,56` and `1,234.56` are the same number in different locales
-- `isValidIban` — ISO 7064 mod-97; a checksum is how you refuse to guess
-- `extractAmount` — find the total without mistaking a date or an IBAN for money
+**Core** — implement in `ocr-layout.ts`:
 
-Checkpoint: scanning the bundled receipt fills the form, every field carrying a
-confidence badge, counter still reading zero.
+- `sameRow` — do two bounding boxes sit on one visual line?
+- `wordsRightOf` — the words right of a label, in reading order
+- `findLabeledAmount` — find the total from the layout: skip "Subtotal", skip a
+  header label with nothing beside it, and prefer the lowest label on the page
+- `calibrate` — combine the heuristic's confidence with the OCR model's
+  per-word confidence; the weakest word decides
 
-**Stretch**: `extractDate` across formats, `extractVendor`, and the
-non-destructive patch rule — never overwrite a field the user already edited.
+Grader: hand-built boxes for each rule, plus **real Tesseract output** for the
+bundled receipt (`ocr-layout.fixture.json`).
 
-**Talking points**: heuristics first, model second (the optional Chrome Prompt
-API pass refines but is never required); why a wrong IBAN is worse than an empty
-one.
+Checkpoint: scan the bundled receipt. The amount badge goes from `medium`
+(found by text alone, with no label beside it) to `high` (paired with its
+label). Every field carries a calibrated badge, and the counter still reads zero.
+
+**Stretch — working with the on-device LLM**, in `prompt-api.ts`:
+
+- `buildPromptInput` — fence the OCR text off as data (a receipt can say
+  "ignore previous instructions"), then list the words the OCR model doubted
+  so the language model knows which characters to question
+- `parsePromptJson` — validate the reply against the zod `PromptReplySchema`.
+  The same schema, converted to JSON Schema, is passed as `responseConstraint`
+  to constrain the model's decoding
+- `mergeFields` — the trust policy: never override a `high` value, re-validate
+  every model value (an IBAN still has to pass mod-97), tag model values `medium`
+
+All three are pure functions with specs, so they work on any laptop. Seeing the
+LLM run live needs Chrome with Gemini Nano downloaded (several GB), so treat it
+as a presenter demo, not a room requirement.
+
+**Talking points**: two models cooperating, with the small specialised one
+first and the general one refining. Model uncertainty as an input, not a log
+line. Why a wrong IBAN is worse than an empty one. An LLM reply is untrusted
+input and gets validated like any other.
 
 ---
 
@@ -177,7 +218,7 @@ make solve-1     # show me the answer    (also -2, -3)
 
 - **`make step-N`** checks out the `step-N-start` tag on a fresh
   `workshop-step-N` branch and prints which files to edit.
-- **`make verify-N`** runs *only* that block's specs — 19, 17 and 29 tests. This
+- **`make verify-N`** runs *only* that block's specs — 19, 23 and 37 tests. This
   is the oracle: the exercise is done when its tests pass, so attendees unblock
   themselves instead of queueing at the front.
 - **`make solve-N`** restores the reference implementation from `main`.
@@ -198,8 +239,8 @@ grader already exists. What each checkpoint leaves failing:
 | Tag | Files | Failing at the start |
 |---|---|---|
 | `step-1-start` | `pose-math.ts` | 13 of 19 |
-| `step-2-start` | `similarity.ts`, `search-core.ts` | 6 of 17 |
-| `step-3-start` | `extract-fields.ts` | 11 of 29 |
+| `step-2-start` | `pooling.ts`, `similarity.ts` | 13 of 23 (1 of them stretch) |
+| `step-3-start` | `ocr-layout.ts`, `prompt-api.ts` | 22 of 37 (9 of them stretch) |
 
 Only the current block is stubbed — the rest of the app is the finished
 reference, so attendees always see their piece working *in context* and a broken
@@ -207,10 +248,19 @@ unrelated route never generates support questions.
 
 **Maintaining the checkpoints.** The tags are commits branching off the tooling
 commit on `main`; `main` itself always holds the complete solution. If you change
-one of the four exercise modules on `main`, re-cut the affected tag: check out
+one of the five exercise modules on `main`, re-cut the affected tag: check out
 the tag, replay your change, `git tag -f step-N-start`, and force-push the tag.
 Three tags is little enough to maintain by hand; freeze the content a week
 before the workshop and re-run the checks below.
+
+Two graders replay recorded model output instead of hand-made numbers. If you
+change the model, its weights or the bundled receipt, regenerate them from
+`frontend/` and commit the JSON:
+
+```bash
+node scripts/generate-pooling-fixture.mjs   # search/pooling.fixture.json
+node scripts/generate-ocr-fixture.mjs       # smartform/ocr-layout.fixture.json
+```
 
 **Verifying the checkpoints still work** (do this after any re-cut):
 

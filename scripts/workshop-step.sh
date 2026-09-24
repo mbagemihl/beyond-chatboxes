@@ -39,9 +39,10 @@ BLOCK="${2:-}"
 # Files each block's exercise lives in — also the set `solve` restores.
 case "$BLOCK" in
   1) FILES=("frontend/src/app/demos/pose/pose-math.ts") ;;
-  2) FILES=("frontend/src/app/demos/search/similarity.ts"
-            "frontend/src/app/demos/search/search-core.ts") ;;
-  3) FILES=("frontend/src/app/demos/smartform/extract-fields.ts") ;;
+  2) FILES=("frontend/src/app/demos/search/pooling.ts"
+            "frontend/src/app/demos/search/similarity.ts") ;;
+  3) FILES=("frontend/src/app/demos/smartform/ocr-layout.ts"
+            "frontend/src/app/demos/smartform/prompt-api.ts") ;;
 esac
 
 STAMP="$(date +%Y%m%d-%H%M%S)"
