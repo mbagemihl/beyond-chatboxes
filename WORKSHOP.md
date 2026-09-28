@@ -48,7 +48,7 @@ by design — that is the whole point of the topic.
 | 0:15–0:35 | **Why local + the stack** | Presenter runs the finished demos, then tours [STACK.md](STACK.md) |
 | 0:35–1:10 | **Block 1 — Your first model with LiteRT.js** | Runtime, model, accelerator fallback, tensors |
 | 1:10–1:20 | Break | |
-| 1:20–2:00 | **Block 2 — Meaning without a server** | Token vectors → sentence embeddings |
+| 1:20–2:00 | **Block 2 — Meaning without a server** | Transformers.js setup: offline config, tokenizer + model, backend |
 | 2:00–2:40 | **Block 3 — Reading a document on-device** | OCR layout + confidence, LLM refinement |
 | 2:40–2:55 | **Finale — Local vs cloud** | Presenter-led benchmark, latency injection |
 | 2:55–3:00 | Close | When to choose local, and when not to |
@@ -122,40 +122,45 @@ make step-2
 
 Route: `/search`. Model: all-MiniLM-L6-v2 (ONNX), Transformers.js, in a Worker.
 
-The lesson: an embedding model does not output "an embedding". It outputs one
-384-dim vector **per token**, padded so the batch is rectangular, and turning
-that into one vector per sentence is part of the model's contract. The worker
-calls the tokenizer and model directly (no one-line `pipeline()`), so this step
-is visible and belongs to the attendee. Get it wrong and nothing crashes: the
-rankings just quietly get worse. That is what model-integration bugs look like.
+The lesson: Block 1's lifecycle again, one level up. Transformers.js wraps
+ONNX Runtime Web and adds what language models need: a tokenizer, weight
+variants (fp32 / q8), and hub-style model loading that you point at your own
+server. Embeddings turn text into geometry; 384 floats per document is enough
+to beat keyword search, with no index server anywhere. The model lives in a Web
+Worker because a 20 MB model compiling on the main thread freezes the UI.
 
-**Warm-up (5 min)** — `similarity.ts` → `cosineSimilarity`.
+**Core** — implement in `frontend/src/app/demos/search/embedding-setup.ts`, in order:
 
-**Core** — implement in `pooling.ts`:
+1. `configureOffline` — forbid the Hugging Face Hub, serve models from
+   `/models/` and ONNX Runtime from `/wasm/ort/`
+2. `embeddingCandidates` — WebGPU with fp32 first, wasm with q8 as the fallback
+3. `loadEmbedder` — `AutoTokenizer` once, then `AutoModel` per candidate; keep
+   the first that survives a warmup embedding
+4. `embedTexts` — tokenize (padding + truncation), run the model, and pass
+   `last_hidden_state` + `attention_mask` to the given `sentenceEmbeddings`
 
-- `meanPool` — average the token vectors using the attention mask, so padding
-  never counts. The mask arrives as a `BigInt64Array`, just as the tokenizer
-  produces it.
-- `l2Normalize` — unit length, so documents compete on direction, not length
+The page guides you: until a step works, the search demo shows the next TODO
+where the results would be.
 
-Grader: besides hand-built cases, `pooling.spec.ts` replays a **recorded real
-forward pass** (`pooling.fixture.json`) and requires the output to match
-Transformers.js' own `pooling: 'mean', normalize: true`. It also proves the mask
-matters: pooling the padding too moves the short sentence's vector measurably.
+Grader: `embedding-setup.spec.ts` runs each step against a **fake
+Transformers.js** that records every call. One test replays a real recorded
+forward pass and requires your `embedTexts` to reproduce Transformers.js' own
+embeddings.
 
 Checkpoint: a query with no shared words with its best match still ranks it
 first — compare against the keyword baseline already in the UI.
 
-**Stretch**: `embeddingCandidates` — choose the (backend, weights) order: WebGPU
-with fp32, wasm with q8. Then reopen the HUD and explain which one your laptop
-picked.
+**Stretch**: `hasUsableWebGPU` — `navigator.gpu` existing is not enough; ask for
+an adapter. Then look at the HUD and explain which backend and dtype your
+laptop picked.
 
-**Talking points**: quantization as a deployment decision, not a detail — fp32 on
-WebGPU (int8 only partially delegates to the GPU) and q8 on wasm, a 4× size
-difference for a small quality cost. Pooling as part of the model's contract:
-all-MiniLM was trained with mean pooling; CLS pooling would run fine and rank
-worse. Expect a mixed room: some laptops report `webgpu`, most report `wasm`.
-Never write an exercise that asserts a backend.
+**Talking points**: quantization as a deployment decision, not a detail (fp32 on
+WebGPU because int8 only partially delegates to the GPU, q8 on wasm, a 4× size
+difference); the tokenizer is part of the model; one vector per token, and why
+pooling with the mask is part of the model's contract (the given
+`pooling.ts`); why the one-line `pipeline()` hides exactly what you just wrote.
+Expect a mixed room of `webgpu` and `wasm`. Never write an exercise that
+asserts a backend.
 
 ---
 
@@ -245,7 +250,7 @@ make solve-1     # show me the answer    (also -2, -3)
 
 - **`make step-N`** checks out the `step-N-start` tag on a fresh
   `workshop-step-N` branch and prints which files to edit.
-- **`make verify-N`** runs *only* that block's specs — 24, 23 and 37 tests. This
+- **`make verify-N`** runs *only* that block's specs — 24, 18 and 37 tests. This
   is the oracle: the exercise is done when its tests pass, so attendees unblock
   themselves instead of queueing at the front.
 - **`make solve-N`** restores the reference implementation from `main`.
@@ -266,7 +271,7 @@ grader already exists. What each checkpoint leaves failing:
 | Tag | Files | Failing at the start |
 |---|---|---|
 | `step-1-start` | `litert-setup.ts` | 19 of 24 (5 of them stretch) |
-| `step-2-start` | `pooling.ts`, `similarity.ts` | 13 of 23 (1 of them stretch) |
+| `step-2-start` | `embedding-setup.ts` | 13 of 18 (1 of them stretch) |
 | `step-3-start` | `ocr-layout.ts`, `prompt-api.ts` | 22 of 37 (9 of them stretch) |
 
 Only the current block is stubbed — the rest of the app is the finished
@@ -275,7 +280,7 @@ unrelated route never generates support questions.
 
 **Maintaining the checkpoints.** The tags are commits branching off the tooling
 commit on `main`; `main` itself always holds the complete solution. If you change
-one of the five exercise modules on `main`, re-cut the affected tag: check out
+one of the four exercise modules on `main`, re-cut the affected tag: check out
 the tag, replay your change, `git tag -f step-N-start`, and force-push the tag.
 Three tags is little enough to maintain by hand; freeze the content a week
 before the workshop and re-run the checks below.
