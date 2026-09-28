@@ -1,20 +1,20 @@
 import { Injectable, signal } from '@angular/core';
+import type { TypedArray } from '@litertjs/core';
 import {
-  CompiledModel,
-  DType,
-  getGlobalLiteRtPromise,
-  isWebGPUSupported,
-  loadAndCompile,
-  loadLiteRt,
-  Tensor,
-  TypedArray,
-} from '@litertjs/core';
-import {
-  computeLetterbox,
-  Keypoints,
-  MOVENET_INPUT_SIZE,
-  parseMoveNetOutput,
-} from './pose-math';
+  InputSpec,
+  ModelLike,
+  SetupError,
+  acceleratorsToTry,
+  allocInput,
+  compileOnBestAccelerator,
+  fetchModelBytes,
+  liteRt,
+  readInputSpec,
+  runModel,
+  startRuntime,
+  warmup,
+} from './litert-setup';
+import { computeLetterbox, Keypoints, MOVENET_INPUT_SIZE, parseMoveNetOutput } from './pose-math';
 
 /** The accelerator actually running inference. */
 export type PoseBackend = 'webgpu' | 'wasm';
@@ -37,7 +37,9 @@ const MODEL_URL = '/models/pose/movenet-singlepose-lightning-f16.tflite';
 export const MODEL_NAME = 'MoveNet SinglePose Lightning · f16';
 
 /**
- * Loads and runs the MoveNet SinglePose model via LiteRT.js.
+ * Loads and runs the MoveNet SinglePose model via LiteRT.js. The LiteRT.js
+ * steps themselves (runtime, fetch, compile with fallback, run) live in
+ * litert-setup.ts; this service sequences them and does the pixel work.
  *
  * Backend policy: prefer WebGPU; if it is unavailable or fails to compile, fall
  * back to wasm (CPU/XNNPACK) and keep working — the UI shows an amber badge.
@@ -62,11 +64,10 @@ export class PoseEngine {
   /** Static model name for the HUD. */
   readonly modelName = MODEL_NAME;
 
-  private model: CompiledModel | null = null;
+  private model: ModelLike | null = null;
 
   // Preprocessing scratch space (allocated once when the model is loaded).
   private inputSize = MOVENET_INPUT_SIZE;
-  private inputDType: DType = 'int32';
   private canvas: HTMLCanvasElement | null = null;
   private ctx: CanvasRenderingContext2D | null = null;
   private inputBuffer: TypedArray | null = null;
@@ -83,72 +84,27 @@ export class PoseEngine {
     this.statusSignal.set('loading');
     this.errorSignal.set(null);
 
-    // 1. Bring up the wasm runtime (idempotent across the whole page).
     try {
-      if (!getGlobalLiteRtPromise()) {
-        await loadLiteRt(WASM_PATH);
-      } else {
-        await getGlobalLiteRtPromise();
-      }
-    } catch (err) {
-      this.fail(
-        `LiteRT runtime failed to load from ${WASM_PATH}. ` +
-          `Was the wasm bundle copied (npm postinstall)? ` +
-          this.messageOf(err),
+      await startRuntime(liteRt, WASM_PATH);
+      const bytes = await fetchModelBytes(MODEL_URL);
+      const { model, accelerator } = await compileOnBestAccelerator(
+        liteRt,
+        bytes,
+        acceleratorsToTry(liteRt),
+        (candidate) => warmup(liteRt, candidate, readInputSpec(candidate, MOVENET_INPUT_SIZE)),
       );
-      return;
-    }
-
-    // 2. Fetch the model bytes ourselves so we can (a) give a precise
-    //    "model missing" error and (b) reuse the bytes for both compile attempts
-    //    without downloading twice.
-    let modelBytes: Uint8Array;
-    try {
-      const res = await fetch(MODEL_URL);
-      if (!res.ok) {
-        this.fail(
-          `Model file missing (${res.status}) at ${MODEL_URL}. ` +
-            `Run scripts/download-models.sh.`,
-        );
-        return;
-      }
-      modelBytes = new Uint8Array(await res.arrayBuffer());
-    } catch (err) {
-      this.fail(`Could not fetch the model: ${this.messageOf(err)}`);
-      return;
-    }
-
-    // 3. Compile + warm up, preferring WebGPU. A backend that compiles can still
-    //    fail to actually execute (e.g. a WebGPU adapter that has no working
-    //    device — common on headless/VM boxes), so each candidate must pass a
-    //    warmup inference before we accept it. Otherwise we fall through to wasm.
-    const candidates: PoseBackend[] = isWebGPUSupported()
-      ? ['webgpu', 'wasm']
-      : ['wasm'];
-
-    for (const backend of candidates) {
-      const model = await this.tryCompile(modelBytes, backend);
-      if (!model) {
-        continue;
-      }
-      if (!(await this.warmup(model))) {
-        console.warn(
-          `[PoseEngine] '${backend}' compiled but failed warmup; trying next backend`,
-        );
-        model.delete();
-        continue;
-      }
-      if (!this.configureInput(model)) {
+      if (!this.configureInput(readInputSpec(model, MOVENET_INPUT_SIZE))) {
         model.delete();
         return; // fail() already called (2D context unavailable)
       }
       this.model = model;
-      this.backendSignal.set(backend);
+      this.backendSignal.set(accelerator);
       this.statusSignal.set('ready');
-      return;
+    } catch (err) {
+      this.fail(
+        err instanceof SetupError ? err.message : `Model setup failed: ${this.messageOf(err)}`,
+      );
     }
-
-    this.fail('The model failed to run on any available backend (WebGPU / wasm).');
   }
 
   /**
@@ -206,25 +162,18 @@ export class PoseEngine {
       buffer[s + 2] = rgba[o + 2];
     }
 
-    const input = new Tensor(buffer, [1, size, size, 3]);
-    let outputs: Tensor[] | null = null;
     try {
-      const t0 = performance.now();
-      const result = await model.run(input);
-      // Default signature returns positional tensors.
-      outputs = result as Tensor[];
-      const raw = await outputs[0].data();
-      const inferenceMs = performance.now() - t0;
-      const keypoints = parseMoveNetOutput(raw, vw, vh, size);
-      return { keypoints, inferenceMs };
-    } finally {
-      // Manual memory management: free the per-frame tensors.
-      input.delete();
-      if (outputs) {
-        for (const t of outputs) {
-          t.delete();
-        }
+      const { output, ms } = await runModel(liteRt, model, buffer, [1, size, size, 3]);
+      const keypoints = parseMoveNetOutput(output, vw, vh, size);
+      return { keypoints, inferenceMs: ms };
+    } catch (err) {
+      // A setup problem will fail every frame the same way: stop the loop and
+      // show it once in the overlay, instead of logging it 60 times a second.
+      if (err instanceof SetupError) {
+        this.fail(err.message);
+        return null;
       }
+      throw err;
     }
   }
 
@@ -240,71 +189,10 @@ export class PoseEngine {
     }
   }
 
-  private async tryCompile(
-    bytes: Uint8Array,
-    backend: PoseBackend,
-  ): Promise<CompiledModel | null> {
-    try {
-      return await loadAndCompile(bytes, { accelerator: backend });
-    } catch (err) {
-      console.warn(`[PoseEngine] '${backend}' compile failed:`, err);
-      return null;
-    }
-  }
-
-  /**
-   * Run one dummy inference to confirm the backend can actually execute (not
-   * just compile). Returns false if the run throws or produces invalid output.
-   */
-  private async warmup(model: CompiledModel): Promise<boolean> {
-    const details = model.getInputDetails()[0];
-    const size = details?.shape?.[1] ?? MOVENET_INPUT_SIZE;
-    const dtype: DType = details?.dtype ?? 'int32';
-    const len = size * size * 3;
-    const dummy = this.allocInput(dtype, len);
-    dummy.fill(128); // neutral gray
-
-    const input = new Tensor(dummy, [1, size, size, 3]);
-    let outputs: Tensor[] | null = null;
-    try {
-      outputs = (await model.run(input)) as Tensor[];
-      const raw = await outputs[0].data();
-      return this.isValidOutput(raw);
-    } catch (err) {
-      console.warn('[PoseEngine] warmup inference failed:', err);
-      return false;
-    } finally {
-      input.delete();
-      if (outputs) {
-        for (const t of outputs) {
-          t.delete();
-        }
-      }
-    }
-  }
-
-  /** Output is usable if every value is finite and it is not all zeros. */
-  private isValidOutput(raw: ArrayLike<number>): boolean {
-    let anyNonZero = false;
-    for (let i = 0; i < raw.length; i++) {
-      const v = raw[i];
-      if (!Number.isFinite(v)) {
-        return false;
-      }
-      if (v !== 0) {
-        anyNonZero = true;
-      }
-    }
-    return anyNonZero;
-  }
-
   /** Size the reusable preprocessing buffers. Returns false if no 2D context. */
-  private configureInput(model: CompiledModel): boolean {
-    const input = model.getInputDetails()[0];
-    // MoveNet input shape is [1, H, W, 3] with H === W.
-    const size = input?.shape?.[1] ?? MOVENET_INPUT_SIZE;
+  private configureInput(spec: InputSpec): boolean {
+    const size = spec.size;
     this.inputSize = size;
-    this.inputDType = input?.dtype ?? 'int32';
 
     const canvas = document.createElement('canvas');
     canvas.width = size;
@@ -316,18 +204,8 @@ export class PoseEngine {
     }
     this.canvas = canvas;
     this.ctx = ctx;
-    this.inputBuffer = this.allocInput(this.inputDType, size * size * 3);
+    this.inputBuffer = allocInput(spec.dtype, size * size * 3);
     return true;
-  }
-
-  private allocInput(dtype: DType, len: number): TypedArray {
-    if (dtype === 'float32') {
-      return new Float32Array(len);
-    }
-    if (dtype === 'uint8') {
-      return new Uint8Array(len);
-    }
-    return new Int32Array(len);
   }
 
   private fail(message: string): void {
