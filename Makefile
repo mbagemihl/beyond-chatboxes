@@ -19,7 +19,7 @@ help: ## List available targets
 # Spec files that grade each exercise block (see WORKSHOP.md). `verify-N` runs
 # ONLY that block's tests, so an attendee gets a fast, unambiguous "done yet?"
 # instead of a wall of unrelated results.
-VERIFY_1 := --include=**/pose-math.spec.ts
+VERIFY_1 := --include=**/litert-setup.spec.ts
 VERIFY_2 := --include=**/pooling.spec.ts --include=**/similarity.spec.ts
 VERIFY_3 := --include=**/ocr-layout.spec.ts --include=**/prompt-api.spec.ts
 

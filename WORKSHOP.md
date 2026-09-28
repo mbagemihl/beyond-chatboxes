@@ -2,8 +2,10 @@
 
 A hands-on workshop: attendees run real ML models **entirely in the browser**,
 with nothing leaving the machine. The Angular app is pre-scaffolded — every
-exercise is about the inference itself: getting pixels into a model, getting
-meaning out of a tensor, and keeping the work off the UI thread.
+exercise is about the AI stack itself: setting up a browser ML runtime, getting
+meaning out of a model's output, and combining an OCR model with an on-device
+LLM. [STACK.md](STACK.md) introduces every technology used; the presenter
+tours it before Block 1.
 
 **Focus.** Local/edge inference. Not Angular. Components, templates and styling
 are already written; attendees fill in clearly marked seams in pure TypeScript
@@ -43,8 +45,8 @@ by design — that is the whole point of the topic.
 | Time | Block | What happens |
 |---|---|---|
 | 0:00–0:15 | **Setup gate** | Copy the pre-seeded folder, `make doctor`, everybody green |
-| 0:15–0:25 | **Why local** | Presenter runs the finished demos. Privacy, latency, cost, offline |
-| 0:25–1:10 | **Block 1 — Pixels in, keypoints out** | Pose estimation: pre/post-processing |
+| 0:15–0:35 | **Why local + the stack** | Presenter runs the finished demos, then tours [STACK.md](STACK.md) |
+| 0:35–1:10 | **Block 1 — Your first model with LiteRT.js** | Runtime, model, accelerator fallback, tensors |
 | 1:10–1:20 | Break | |
 | 1:20–2:00 | **Block 2 — Meaning without a server** | Token vectors → sentence embeddings |
 | 2:00–2:40 | **Block 3 — Reading a document on-device** | OCR layout + confidence, LLM refinement |
@@ -56,7 +58,17 @@ the setup gate and not the finale — the finale is where the argument lands.
 
 ---
 
-## Block 1 — Pixels in, keypoints out (45 min)
+## Why local + the stack (20 min, presenter-led)
+
+Run the finished demos first (the "why"): pose, search, the receipt scan with
+its **0 bytes uploaded** counter. Then walk through [STACK.md](STACK.md), the
+"how". The one picture to leave on screen: *model file → runtime library →
+WebGPU or wasm*, with each demo mapped onto it. Show the five LiteRT.js calls
+on screen, since Block 1 starts right after.
+
+---
+
+## Block 1 — Your first model with LiteRT.js (35 min)
 
 ```bash
 make step-1
@@ -65,25 +77,40 @@ make step-1
 Route: `/pose?fixture=1`. Model: MoveNet SinglePose Lightning, float16 tflite,
 via LiteRT.js.
 
-The lesson: a model is a function from one fixed-shape tensor to another, and
-almost all the work is on either side of it. A 640×480 camera frame is not a
-192×192 tensor, and the model's output is not a skeleton until you decode it.
+The lesson: running a model in the browser is a short, fixed lifecycle, and
+every step has a failure mode you must handle on stage: start the runtime from
+your own origin, fetch the model, compile it for the best accelerator (WebGPU,
+falling back to wasm), push a tensor through it, and free the memory. The pose
+maths (letterboxing, decoding the output, joint angles) is already written.
 
-**Core** — implement in `frontend/src/app/demos/pose/pose-math.ts`:
+**Core** — implement in `frontend/src/app/demos/pose/litert-setup.ts`, in order:
 
-- `computeLetterbox` — fit the frame into the square input without distorting it
-- `parseMoveNetOutput` — decode the raw output tensor into 17 scored keypoints
-- `squareToSourceNorm` — map coordinates back out of letterbox space
+1. `startRuntime` — `loadLiteRt('/wasm/litert/')`, reusing a runtime that is
+   already loading
+2. `fetchModelBytes` — download the `.tflite`; a 404 must say "run
+   download-models.sh", not show a blank screen
+3. `acceleratorsToTry` + `compileOnBestAccelerator` — `loadAndCompile` on
+   WebGPU, fall back to wasm, free a model that compiled but failed warmup
+4. `runModel` — `new Tensor`, `model.run`, `await output.data()`, then
+   `delete()` every tensor, even when `run` throws
 
-Checkpoint: the skeleton tracks the person in the fixture clip, and the HUD shows
-a real inference time.
+The page guides you: until a step is implemented, the pose demo's error overlay
+names the next TODO. Once all four work, the skeleton tracks the fixture clip
+and the HUD shows the backend and a real inference time.
 
-**Stretch** — `angleABC`, `jointAngle`, `computeBodyAngles`: turn keypoints into
-elbow and knee angles, so the demo says something a human cares about.
+Grader: `litert-setup.spec.ts` runs each step against a **fake LiteRT.js**
+that records every call, so it checks the library is used correctly (right
+path, right accelerator order, every tensor freed) with no GPU or model file.
 
-**Talking points**: why f16 rather than int8 here (coordinate precision becomes
-visible jitter in joint angles); why the inference loop is decoupled from the
-draw loop; why per-frame work must never touch change detection.
+**Stretch**: `readInputSpec` (ask the model for its input shape and dtype
+instead of hard-coding 192×192) and `warmup` (run one grey frame and reject
+NaN or all-zero output, because a broken GPU path rarely throws).
+
+**Talking points**: why tensors need manual `delete()` (native wasm/GPU
+memory, and a 30 fps loop); why `output.data()` is async (GPU readback — time
+it, or the HUD lies); why a backend that compiles can still not work; f16
+weights (half the download, no visible accuracy loss). Expect a mixed room of
+`webgpu` and `wasm` badges; never assert a backend.
 
 ---
 
@@ -218,7 +245,7 @@ make solve-1     # show me the answer    (also -2, -3)
 
 - **`make step-N`** checks out the `step-N-start` tag on a fresh
   `workshop-step-N` branch and prints which files to edit.
-- **`make verify-N`** runs *only* that block's specs — 19, 23 and 37 tests. This
+- **`make verify-N`** runs *only* that block's specs — 24, 23 and 37 tests. This
   is the oracle: the exercise is done when its tests pass, so attendees unblock
   themselves instead of queueing at the front.
 - **`make solve-N`** restores the reference implementation from `main`.
@@ -238,7 +265,7 @@ grader already exists. What each checkpoint leaves failing:
 
 | Tag | Files | Failing at the start |
 |---|---|---|
-| `step-1-start` | `pose-math.ts` | 13 of 19 |
+| `step-1-start` | `litert-setup.ts` | 19 of 24 (5 of them stretch) |
 | `step-2-start` | `pooling.ts`, `similarity.ts` | 13 of 23 (1 of them stretch) |
 | `step-3-start` | `ocr-layout.ts`, `prompt-api.ts` | 22 of 37 (9 of them stretch) |
 

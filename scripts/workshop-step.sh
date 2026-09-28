@@ -38,7 +38,7 @@ BLOCK="${2:-}"
 
 # Files each block's exercise lives in — also the set `solve` restores.
 case "$BLOCK" in
-  1) FILES=("frontend/src/app/demos/pose/pose-math.ts") ;;
+  1) FILES=("frontend/src/app/demos/pose/litert-setup.ts") ;;
   2) FILES=("frontend/src/app/demos/search/pooling.ts"
             "frontend/src/app/demos/search/similarity.ts") ;;
   3) FILES=("frontend/src/app/demos/smartform/ocr-layout.ts"

@@ -4,7 +4,9 @@ Browser-side ML demos (LiteRT.js, Transformers.js, Tesseract.js) in Angular,
 compared against a server-side "cloud" tier running on Spring Boot / Kotlin
 via DJL. These are **live stage demos**: reliability beats elegance, and nothing
 depends on network access at runtime except the explicit cloud-comparison call.
-See [`CLAUDE.md`](CLAUDE.md) for the full engineering conventions.
+See [`CLAUDE.md`](CLAUDE.md) for the full engineering conventions,
+[`STACK.md`](STACK.md) for an introduction to each ML technology used, and
+[`WORKSHOP.md`](WORKSHOP.md) for the hands-on workshop.
 
 ## Repository layout
 
