@@ -6,13 +6,7 @@
  */
 import fixture from './pooling.fixture.json';
 import { cosineSimilarity } from './similarity';
-import {
-  TokenDims,
-  embeddingCandidates,
-  l2Normalize,
-  meanPool,
-  sentenceEmbeddings,
-} from './pooling';
+import { TokenDims, l2Normalize, meanPool, sentenceEmbeddings } from './pooling';
 
 function expectClose(actual: readonly number[], expected: readonly number[], digits = 5): void {
   expect(actual.length).toBe(expected.length);
@@ -92,18 +86,5 @@ describe('sentenceEmbeddings on a real model output', () => {
     const unmasked = sentenceEmbeddings(fixture.hidden, dims, allOnes);
     // The short text is mostly padding, so its vector must move noticeably.
     expect(cosineSimilarity(unmasked[0], fixture.expected[0])).toBeLessThan(0.99);
-  });
-});
-
-describe('embeddingCandidates (stretch)', () => {
-  it('prefers WebGPU with fp32, and keeps wasm q8 as the fallback', () => {
-    expect(embeddingCandidates(true)).toEqual([
-      { backend: 'webgpu', dtype: 'fp32' },
-      { backend: 'wasm', dtype: 'q8' },
-    ]);
-  });
-
-  it('goes straight to wasm q8 without a usable GPU', () => {
-    expect(embeddingCandidates(false)).toEqual([{ backend: 'wasm', dtype: 'q8' }]);
   });
 });

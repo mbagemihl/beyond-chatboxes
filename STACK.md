@@ -120,10 +120,14 @@ const { last_hidden_state } = await model(inputs);   // one vector per TOKEN
   the model only understands the IDs it was trained with.
 - **`dtype` is quantization.** `fp32` is full precision; `q8` stores weights
   as 8-bit integers: 4× smaller, faster on CPU, slightly less accurate.
-- There is also a one-line `pipeline('feature-extraction', …)`. We don't use
-  it, because the step after the model is what Block 2 is about.
+- **The model outputs one vector per token**, not per sentence. Averaging them
+  (skipping padding, via the `attention_mask`) and normalizing to unit length
+  is part of the model's contract; that code is given, in `pooling.ts`.
+- There is also a one-line `pipeline('feature-extraction', …)` that hides all
+  of this. We don't use it, so you can see each step.
 
-In the repo: `search/embedding.worker.ts`, `search/pooling.ts`.
+In the repo: `search/embedding-setup.ts` (the steps above, which you write in
+Block 2), `search/embedding.worker.ts` (which runs them), `search/pooling.ts`.
 
 ---
 
