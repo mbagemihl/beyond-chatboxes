@@ -3,6 +3,23 @@
  * with Transformers.js, one step per function: configure it for offline use,
  * choose a backend, load tokenizer + model, and turn texts into vectors.
  *
+ * ┌─────────────────────────────────────────────────────────────────────────┐
+ * │ BONUS TRACK "search" — Meaning without a server                         │
+ * │                                                                         │
+ * │ Act 2a's lifecycle, one level up: Transformers.js adds a tokenizer,     │
+ * │ weight variants (fp32 / q8) and model loading you point at your own     │
+ * │ server. It runs inside a Web Worker, so the page never freezes.         │
+ * │                                                                         │
+ * │ Implement the TODOs below, in order (steps 1–4 are core).               │
+ * │   Check your work:  lab verify bonus-search                             │
+ * │   Stuck?            lab solve bonus-search                              │
+ * │                                                                         │
+ * │ Watch it work:  http://localhost:4200/search                            │
+ * │ The page names the next step until search works. Then try a query       │
+ * │ whose words appear in NO document ("doctor" vs a talk about being       │
+ * │ unwell): keyword search finds nothing, yours ranks it first.            │
+ * └─────────────────────────────────────────────────────────────────────────┘
+ *
  * Transformers.js is Hugging Face's JavaScript port of the Python
  * `transformers` library. It runs `.onnx` models on ONNX Runtime Web (WebGPU or
  * wasm) and ships the matching tokenizers. See STACK.md for the overview.
@@ -101,39 +118,34 @@ function isTensorLike(value: unknown): value is TensorLike {
 // =============================================================================
 
 /**
- * Point Transformers.js at OUR origin and forbid the Hugging Face Hub, so the
- * demo works with the network cable pulled out:
- *   - no remote models, local models from `/models/`;
- *   - ONNX Runtime's wasm binaries from `/wasm/ort/`, one thread, no proxy
- *     worker (without cross-origin isolation headers there is no
- *     SharedArrayBuffer, so threading would only fail noisily).
+ * TODO (bonus search, step 1) — Point Transformers.js at OUR origin and forbid the
+ * Hugging Face Hub, so the demo works with the network cable pulled out. On
+ * `env`, set:
+ *   - `allowRemoteModels` false, `allowLocalModels` true, and `localModelPath`
+ *     `/models/` (model files live at /models/<model id>/);
+ *   - if `env.backends.onnx.wasm` exists: `wasmPaths` `/wasm/ort/` (ONNX
+ *     Runtime's own wasm binaries), `numThreads` 1 and `proxy` false. Without
+ *     cross-origin isolation headers there is no SharedArrayBuffer, so
+ *     threading would only fail noisily.
+ *
+ * Until you do this, the model never loads: the library would try the Hub.
  */
-export function configureOffline(env: TransformersEnv): void {
-  env.allowRemoteModels = false;
-  env.allowLocalModels = true;
-  env.localModelPath = '/models/';
-  const wasm = env.backends?.onnx?.wasm;
-  if (wasm) {
-    wasm.wasmPaths = '/wasm/ort/';
-    wasm.numThreads = 1;
-    wasm.proxy = false;
-  }
-}
+export function configureOffline(env: TransformersEnv): void {}
 
 // =============================================================================
 // Step 2 — backend + weights
 // =============================================================================
 
 /**
- * The ordered (device, dtype) pairs to try. Quantization is a deployment
- * decision, not a detail: WebGPU gets full fp32 weights (int8 ops only
- * partially delegate to the GPU, so q8 would be slower there), while wasm gets
- * the 4x smaller q8 weights, faster on CPU for a small quality cost. wasm is
- * always the last resort.
+ * TODO (bonus search, step 2) — The ordered (device, dtype) pairs to try.
+ * Quantization is a deployment decision, not a detail:
+ *   * `webgpu` → `fp32`. int8 ops only partially delegate to the GPU, so q8
+ *     would actually be slower there.
+ *   * `wasm` → `q8`. 4x smaller weights, faster on CPU, small quality cost.
+ * WebGPU first when it is usable, and ALWAYS end with wasm.
  */
 export function embeddingCandidates(webgpuUsable: boolean): EmbeddingCandidate[] {
-  const wasm: EmbeddingCandidate = { device: 'wasm', dtype: 'q8' };
-  return webgpuUsable ? [{ device: 'webgpu', dtype: 'fp32' }, wasm] : [wasm];
+  return [];
 }
 
 // =============================================================================
@@ -141,44 +153,24 @@ export function embeddingCandidates(webgpuUsable: boolean): EmbeddingCandidate[]
 // =============================================================================
 
 /**
- * Load the tokenizer once, then the model for each candidate in turn, and keep
- * the first one that can embed a warmup text. A model that loads can still
- * fail on its first run, so loading alone proves nothing.
- *
- * A tokenizer that fails to load is fatal (it is the same for every backend).
- * A candidate that fails to load or warm up is logged and skipped, and the
- * final error names the last failure, so the page shows the actual cause.
+ * TODO (bonus search, step 3) — Load the tokenizer once
+ * (`api.loadTokenizer(modelId)`), then the model for each candidate in turn
+ * (`api.loadModel(modelId, candidate)`), and return the first embedder that
+ * can embed a warmup text (`await embedTexts(embedder, ['warmup'])`). A model
+ * that loads can still fail on its first run.
+ *   * Tokenizer fails to load: throw a `SetupError` right away (it is the same
+ *     for every backend); mention scripts/download-models.sh.
+ *   * A candidate fails to load or to warm up: `console.warn` and try the next.
+ *   * Nothing worked: throw a `SetupError` that includes the LAST failure's
+ *     message, so the page shows the actual cause.
  */
 export async function loadEmbedder(
   api: TransformersApi,
   modelId: string,
   candidates: readonly EmbeddingCandidate[],
 ): Promise<Embedder> {
-  let tokenizer: TokenizerLike;
-  try {
-    tokenizer = await api.loadTokenizer(modelId);
-  } catch (err) {
-    throw new SetupError(
-      `The tokenizer for ${modelId} failed to load. Run scripts/download-models.sh. ` +
-        (err instanceof Error ? err.message : String(err)),
-    );
-  }
-  let lastError = 'no candidates';
-  for (const candidate of candidates) {
-    try {
-      const model = await api.loadModel(modelId, candidate);
-      const embedder: Embedder = { tokenizer, model, candidate };
-      await embedTexts(embedder, ['warmup']);
-      return embedder;
-    } catch (err) {
-      console.warn(`[embedding] '${candidate.device}' failed:`, err);
-      lastError = err instanceof Error ? err.message : String(err);
-    }
-  }
   throw new SetupError(
-    `The embedding model failed to load on any backend (WebGPU / wasm): ${lastError} ` +
-      `Check that /models/${modelId}/ and /wasm/ort/ are present ` +
-      '(run scripts/download-models.sh and npm install).',
+    'Bonus search, step 3 of 4: load the tokenizer and model. Implement loadEmbedder() in embedding-setup.ts.',
   );
 }
 
@@ -187,33 +179,26 @@ export async function loadEmbedder(
 // =============================================================================
 
 /**
- * Tokenize a batch (padded so every text has the same length, truncated to
- * the model's maximum), run the model, and turn its output into one vector
- * per text.
+ * TODO (bonus search, step 4) — Texts in, vectors out:
+ *   1. `embedder.tokenizer([...texts], { padding: true, truncation: true })`.
+ *      Padding makes every text in the batch the same length; truncation cuts
+ *      texts longer than the model's maximum.
+ *   2. `await embedder.model(inputs)` — its result has `last_hidden_state`:
+ *      one vector PER TOKEN, a tensor with `data` and `dims` [batch, seq, hidden].
+ *   3. Pass `last_hidden_state.data`, its dims, and the tokenizer's
+ *      `attention_mask.data` (which marks the padding) to the given
+ *      `sentenceEmbeddings`: one unit-length vector per text.
  *
- * The model returns `last_hidden_state`: one vector PER TOKEN, shape
- * [batch, seq, hidden]. Hand it to the given `sentenceEmbeddings` together
- * with the tokenizer's `attention_mask`, which marks the padding to ignore.
+ * The outputs are `unknown`: check them with the given `isTensorLike`, and
+ * throw a `SetupError` if either tensor is missing.
  */
 export async function embedTexts(
   embedder: Embedder,
   texts: readonly string[],
 ): Promise<number[][]> {
-  const inputs = embedder.tokenizer([...texts], { padding: true, truncation: true });
-  const outputs = await embedder.model(inputs);
-  const hidden: unknown =
-    typeof outputs === 'object' && outputs !== null && 'last_hidden_state' in outputs
-      ? outputs.last_hidden_state
-      : undefined;
-  const mask: unknown = inputs['attention_mask'];
-  if (!isTensorLike(hidden) || hidden.dims.length !== 3) {
-    throw new SetupError('Model output has no [batch, seq, hidden] last_hidden_state.');
-  }
-  if (!isTensorLike(mask)) {
-    throw new SetupError('Tokenizer output has no attention_mask.');
-  }
-  const [batch, seq, size] = hidden.dims;
-  return sentenceEmbeddings(hidden.data as ArrayLike<number>, [batch, seq, size], mask.data);
+  throw new SetupError(
+    'Bonus search, step 4 of 4: turn texts into vectors. Implement embedTexts() in embedding-setup.ts.',
+  );
 }
 
 // =============================================================================
@@ -226,19 +211,15 @@ export interface NavigatorLike {
 }
 
 /**
- * True only if the browser can hand out an actual WebGPU adapter. Checking
- * `'gpu' in navigator` is not enough: headless Chromium, VMs and browsers with
- * WebGPU switched off expose the object, but `requestAdapter()` resolves to
- * `null` or throws. We must know before loading, because a failed WebGPU
- * attempt leaves ONNX Runtime in a state that breaks the wasm fallback too.
+ * TODO (bonus search, stretch) — True only if the browser can hand out an actual
+ * WebGPU adapter: `await nav.gpu.requestAdapter()` must return something.
+ *
+ * Checking `'gpu' in navigator` is not enough: headless Chromium, VMs and
+ * browsers with WebGPU switched off expose the object, but `requestAdapter()`
+ * resolves to `null` or throws. We must know before loading, because a failed
+ * WebGPU attempt leaves ONNX Runtime in a state that breaks the wasm fallback
+ * too. Until you do this, everyone runs on wasm.
  */
 export async function hasUsableWebGPU(nav: NavigatorLike): Promise<boolean> {
-  if (!nav.gpu) {
-    return false;
-  }
-  try {
-    return (await nav.gpu.requestAdapter()) != null;
-  } catch {
-    return false;
-  }
+  return false;
 }
