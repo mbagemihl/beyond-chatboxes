@@ -13,6 +13,7 @@ import { DecimalPipe } from '@angular/common';
 import { PoseCloudService } from '../../benchmark/pose-cloud.service';
 import { drawSkeleton } from '../pose/live-loop';
 import { PoseEngine } from '../pose/pose-engine.service';
+import { FixtureCredit } from '../pose/fixture-credit';
 import { PoseHud } from '../pose/pose-hud/pose-hud';
 import { Keypoints } from '../pose/pose-math';
 import { compareTiers, toKeypoints } from './compare-tiers';
@@ -39,7 +40,7 @@ interface ServerAnswer {
  */
 @Component({
   selector: 'app-pose-still',
-  imports: [PoseHud, DecimalPipe],
+  imports: [PoseHud, FixtureCredit, DecimalPipe],
   templateUrl: './pose-still.html',
   styleUrl: './pose-still.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,

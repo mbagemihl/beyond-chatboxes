@@ -12,6 +12,7 @@ import {
 import { DecimalPipe } from '@angular/common';
 import { ActivatedRoute } from '@angular/router';
 import { CameraService } from '../demos/pose/camera.service';
+import { FixtureCredit } from '../demos/pose/fixture-credit';
 import { PoseEngine } from '../demos/pose/pose-engine.service';
 import { PoseCloudService } from './pose-cloud.service';
 import {
@@ -64,7 +65,7 @@ const SVG_USABLE = 800;
  */
 @Component({
   selector: 'app-benchmark',
-  imports: [DecimalPipe],
+  imports: [DecimalPipe, FixtureCredit],
   templateUrl: './benchmark.html',
   styleUrl: './benchmark.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,

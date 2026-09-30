@@ -24,6 +24,7 @@ import {
 } from './live-loop';
 import { PoseHud } from './pose-hud/pose-hud';
 import { PoseAnglePanel } from './pose-angle-panel/pose-angle-panel';
+import { FixtureCredit } from './fixture-credit';
 
 /** How many recent inference times to average for the HUD. */
 const MS_WINDOW = 30;
@@ -41,7 +42,7 @@ const FIXTURE_VIDEO_URL = '/fixtures/pose.webm';
  */
 @Component({
   selector: 'app-pose',
-  imports: [PoseHud, PoseAnglePanel],
+  imports: [PoseHud, PoseAnglePanel, FixtureCredit],
   templateUrl: './pose.html',
   styleUrl: './pose.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,

@@ -28,6 +28,9 @@
           <div class="bench__overlay" role="status"><p>{{ msg }}</p></div>
         }
       </div>
+      @if (fixtureMode) {
+        <app-fixture-credit />
+      }
 
       <div class="bench__local-badge">
         <span class="label">local engine</span>
