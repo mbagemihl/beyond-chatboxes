@@ -1,7 +1,8 @@
 // generate-still-fixture.mjs — cuts the still image for the workshop's Act 1 and
 // Act 2a (public/fixtures/pose-still.jpg) out of the squat clip that
-// download-models.sh fetches (public/fixtures/pose.webm, Wikimedia Commons,
-// CC BY 3.0 — see public/fixtures/ATTRIBUTION.md).
+// download-models.sh fetches (public/fixtures/pose.webm: "Squat - exercise
+// demonstration video" by FitnessScape, Wikimedia Commons, CC BY 3.0 — see
+// public/fixtures/ATTRIBUTION.md).
 //
 // Both tiers get this exact file: `make measure-backend` POSTs it to the
 // backend, and /pose/still runs it through LiteRT.js in the browser. There is

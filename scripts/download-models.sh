@@ -137,15 +137,16 @@ fi
 
 # ---------------------------------------------------------------------------
 # Pose fixture clip (?fixture=1) — the stage fallback when lighting or camera
-# permissions fail. A short CC BY 3.0 squat-demonstration video from Wikimedia
-# Commons ("Squat - exercise demonstration video.webm"), full-body and
-# MoveNet-friendly. Served from our own origin at /fixtures/pose.webm; like
+# permissions fail. "Squat - exercise demonstration video" by FitnessScape
+# (https://www.youtube.com/@FitnessScapeFitness), via Wikimedia Commons,
+# licensed CC BY 3.0 (see frontend/public/fixtures/ATTRIBUTION.md): full-body
+# and MoveNet-friendly. Served from our own origin at /fixtures/pose.webm; like
 # every fetched artifact it is not committed. The smart-form fixture
 # (receipt.svg) is authored in-repo and needs no download.
 FIXTURES_DIR="$REPO_ROOT/frontend/public/fixtures"
 POSE_FIXTURE_URL="https://upload.wikimedia.org/wikipedia/commons/5/5c/Squat_-_exercise_demonstration_video.webm"
 
-echo "==> Pose fixture: squat demonstration clip (Wikimedia Commons, CC BY 3.0)"
+echo "==> Pose fixture: squat clip by FitnessScape (Wikimedia Commons, CC BY 3.0)"
 fetch_verify "$POSE_FIXTURE_URL" "$FIXTURES_DIR/pose.webm" \
   "2440985661c3533a4ce78472b0f4577dbdf023aff3f8f9a225bbb5ff8071b1e9"
 
