@@ -1,7 +1,7 @@
 import { Routes } from '@angular/router';
 
-// Demo paths and their 1–4 shortcut order live in demo-registry.ts; keep this
-// list in the same order.
+// Demo paths and their number-key shortcut order live in demo-registry.ts;
+// keep this list in the same order.
 export const routes: Routes = [
   {
     path: '',
@@ -27,6 +27,11 @@ export const routes: Routes = [
     path: 'benchmark',
     loadComponent: () => import('./benchmark/benchmark').then((m) => m.Benchmark),
     title: 'Local vs Cloud — Beyond the Chatbox',
+  },
+  {
+    path: 'pose/still',
+    loadComponent: () => import('./demos/pose-still/pose-still').then((m) => m.PoseStill),
+    title: 'Pose, one still image — Beyond the Chatbox',
   },
   // A mistyped URL on stage must land somewhere sensible, never a blank page.
   { path: '**', redirectTo: '' },

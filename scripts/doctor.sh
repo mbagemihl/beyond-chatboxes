@@ -18,9 +18,10 @@
 #     in download-models.sh, which already verifies-and-skips; this script
 #     prints that command rather than duplicating the hashes here (two copies
 #     of a hash list is a maintenance trap).
-#   * The workshop focus is LOCAL inference, so the Spring Boot cloud tier is
-#     OPTIONAL: a missing JDK 21 or server ONNX model is a warning, never a
-#     failure. Attendees can complete every exercise without it.
+#   * The lab starts on the JVM (Act 1) and races it in Act 3, so the backend
+#     is REQUIRED: a Java 21+ (installed, or the portable one from `make jre`),
+#     the prebuilt jar and the server ONNX model are blocking checks, like Node
+#     and the browser models.
 #
 set -uo pipefail
 
@@ -178,6 +179,8 @@ head2 "Fixtures (the camera-free fallback every exercise can run on)"
 
 require_file "$PUBLIC_DIR/fixtures/pose.webm" 100000 "Pose fixture clip" \
   "Run: scripts/download-models.sh"
+require_file "$PUBLIC_DIR/fixtures/pose-still.jpg" 20000 "Pose still image (Acts 1 and 2a)" \
+  "Ships with the repo — re-check out the file if it vanished."
 require_file "$PUBLIC_DIR/fixtures/receipt.svg" 500 "Smart-form fixture receipt" \
   "Ships with the repo — re-check out the file if it vanished."
 
@@ -202,50 +205,51 @@ else
   ok "Port 4200 free (Angular dev server)"
 fi
 
-# 8080 is only the optional cloud-tier finale, and is notoriously squatted by VM
-# and container proxies — a warning, never a failure.
-if port_busy 8080; then
-  warn "Port 8080 is in use (often a VM/container proxy)"
-  note "Only affects the optional cloud-tier finale. Run it elsewhere: --server.port=9099"
+# The backend port. VM and container proxies love to squat :8080, so it can be
+# moved; if it is taken by our own backend (already started), that is fine.
+BACKEND_PORT="${BACKEND_PORT:-8080}"
+if port_busy "$BACKEND_PORT"; then
+  if curl -fsS "http://localhost:$BACKEND_PORT/api/health" 2>/dev/null | grep -q '"UP"'; then
+    ok "Port $BACKEND_PORT: the workshop backend is already running there"
+  else
+    bad "Port $BACKEND_PORT is in use by something else (often a VM/container proxy)" \
+        "Move the backend: make backend BACKEND_PORT=9099, and start the frontend with make dev-frontend BACKEND_PORT=9099 (then re-run: BACKEND_PORT=9099 make doctor)"
+  fi
 else
-  ok "Port 8080 free (optional backend)"
+  ok "Port $BACKEND_PORT free (pose backend)"
 fi
 
 # =============================================================================
-head2 "Optional — the 'local vs cloud' finale (presenter-led, not an exercise)"
+head2 "Act 1 — the pose backend (Spring Boot + DJL)"
 # =============================================================================
 
-JDK_OK=0
-if [[ -n "${JAVA_HOME:-}" && -x "${JAVA_HOME}/bin/java" ]]; then
-  JDK_VER="$("$JAVA_HOME/bin/java" -version 2>&1 | head -1)"
-  [[ "$JDK_VER" == *'"21'* ]] && JDK_OK=1
-elif command -v java >/dev/null 2>&1; then
-  JDK_VER="$(java -version 2>&1 | head -1)"
-  [[ "$JDK_VER" == *'"21'* ]] && JDK_OK=1
+# The same `java` that `make backend` uses (scripts/find-java.sh decides for
+# both). Any release 21 or newer runs the jar.
+JAVA_BIN="$("$SCRIPT_DIR/find-java.sh" || true)"
+if [[ -n "$JAVA_BIN" ]]; then
+  JDK_VER="$("$JAVA_BIN" -version 2>&1 | head -1)"
+  if [[ "$JAVA_BIN" == "$REPO_ROOT/.tools/"* ]]; then
+    ok "Java: ${JDK_VER} (portable runtime in .tools/jre)"
+  else
+    ok "Java: ${JDK_VER} (${JAVA_BIN})"
+  fi
 else
-  JDK_VER=""
+  bad "No Java 21 or newer found" \
+      "Run: make jre (downloads a portable Java 21 runtime, ~45 MB), or install any JDK 21 or newer"
 fi
 
-if (( JDK_OK )); then
-  ok "JDK 21 available"
-elif [[ -n "$JDK_VER" ]]; then
-  warn "JDK present but not 21 — $JDK_VER"
-  note "Only needed to run the backend yourself; every exercise works without it."
-else
-  warn "No JDK found"
-  note "Only needed to run the backend yourself; every exercise works without it."
-fi
-
-optional_file "$PUBLIC_DIR/models/pose/movenet-singlepose-lightning.onnx" \
+require_file "$REPO_ROOT/backend/dist/backend.jar" 100000000 "Prebuilt backend (backend/dist/backend.jar)" \
+  "Copy backend/dist/backend.jar from the workshop USB stick (or, online: make backend-jar)"
+require_file "$PUBLIC_DIR/models/pose/movenet-singlepose-lightning.onnx" 9000000 \
   "Server-side pose model (ONNX)" \
-  "Without it the backend returns a clean 503 and the benchmark shows local only."
+  "Run: scripts/download-models.sh (or copy frontend/public/models/pose/ from the USB stick)"
 
 # =============================================================================
 head2 "Checks only a browser can answer"
 # =============================================================================
 
 note "WebGPU cannot be detected from a shell. Start the app and read the HUD badge:"
-note "  cd frontend && npx ng serve   →   http://localhost:4200/pose?fixture=1"
+note "  make backend   and   make dev-frontend   →   http://localhost:4200/pose/still"
 note "A badge reading 'wasm' instead of 'webgpu' is FINE — the fallback is part of the story."
 note "For full sha256 verification of every artifact (offline when all are present):"
 note "  scripts/download-models.sh"

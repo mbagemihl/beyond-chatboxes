@@ -1,0 +1,163 @@
+:host {
+  display: block;
+  min-height: 100dvh;
+  background: #0b1220;
+  color: #e5eef5;
+  padding: 1.5rem;
+  box-sizing: border-box;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+    Helvetica, Arial, sans-serif;
+}
+
+.still__header {
+  margin-bottom: 1rem;
+
+  h1 {
+    margin: 0;
+    font-size: 1.6rem;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+}
+
+.still__subtitle {
+  margin: 0.25rem 0 0;
+  color: #6b7f95;
+  font-size: 0.9rem;
+}
+
+.still__stage {
+  position: relative;
+  width: 100%;
+  max-width: 960px;
+  margin: 0 auto;
+  background: #05080f;
+  border: 1px solid rgba(34, 211, 238, 0.15);
+  border-radius: 0.75rem;
+  overflow: hidden;
+  min-height: 12rem;
+}
+
+/* The <img> only feeds pixels to the canvas. */
+.still__source {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.still__canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.still__hud {
+  position: absolute;
+  top: 0.75rem;
+  left: 0.75rem;
+  z-index: 2;
+  max-width: calc(100% - 1.5rem);
+}
+
+.still__overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  text-align: center;
+  background: rgba(5, 8, 15, 0.72);
+  backdrop-filter: blur(2px);
+
+  p {
+    margin: 0;
+    max-width: 32rem;
+    font-size: 1rem;
+    line-height: 1.5;
+  }
+}
+
+.still__credit {
+  max-width: 960px;
+  margin: 0 auto;
+}
+
+.still__panel {
+  max-width: 960px;
+  margin: 1rem auto 0;
+}
+
+.still__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+
+  button {
+    padding: 0.55rem 1rem;
+    border-radius: 0.5rem;
+    border: 1px solid rgba(34, 211, 238, 0.6);
+    background: rgba(34, 211, 238, 0.12);
+    color: #22d3ee;
+    font: inherit;
+    font-weight: 600;
+    cursor: pointer;
+
+    &:disabled {
+      opacity: 0.5;
+      cursor: default;
+    }
+  }
+}
+
+.still__results {
+  margin: 1rem 0 0;
+  display: grid;
+  gap: 0.4rem;
+  font-family: 'SFMono-Regular', ui-monospace, 'Menlo', monospace;
+  font-size: 0.9rem;
+
+  .row {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 0.25rem 1rem;
+    padding: 0.4rem 0;
+    border-bottom: 1px solid rgba(107, 127, 149, 0.2);
+  }
+
+  dt {
+    color: #9fb0c2;
+  }
+
+  dd {
+    margin: 0;
+    color: #e5eef5;
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+.swatch {
+  display: inline-block;
+  width: 0.7rem;
+  height: 0.7rem;
+  margin-right: 0.5rem;
+  border-radius: 50%;
+  vertical-align: middle;
+}
+
+.swatch--browser {
+  background: #22d3ee;
+}
+
+.swatch--server {
+  background: #f59e0b;
+}
+
+.still__error {
+  margin: 0.75rem 0 0;
+  color: #f59e0b;
+}

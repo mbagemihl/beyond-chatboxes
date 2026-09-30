@@ -1,7 +1,8 @@
 /**
- * The four demos, in stage order. Single source of truth shared by the
- * landing page cards and the global 1–4 keyboard shortcuts, so the number
- * printed on a card is always the key that opens it.
+ * The demos, in stage order. Single source of truth shared by the landing
+ * page cards and the global number-key shortcuts, so the number printed on a
+ * card is always the key that opens it. The talk uses 1–4; the workshop's
+ * still-image view (Act 2a) comes last so those keys stay the same.
  */
 export interface DemoEntry {
   /** Router path (no leading slash). */
@@ -38,5 +39,11 @@ export const DEMOS: readonly DemoEntry[] = [
     title: 'Local vs Cloud',
     tech: 'LiteRT.js vs Spring Boot + DJL',
     blurb: 'The same model, raced in the browser and on the server.',
+  },
+  {
+    path: 'pose/still',
+    title: 'Pose, still image',
+    tech: 'LiteRT.js vs DJL · one image',
+    blurb: 'One image through the browser model, checked against the backend.',
   },
 ];

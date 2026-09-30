@@ -10,24 +10,31 @@ import {
   viewChild,
 } from '@angular/core';
 import { DecimalPipe } from '@angular/common';
+import { ActivatedRoute } from '@angular/router';
 import { CameraService } from '../demos/pose/camera.service';
+import { FixtureCredit } from '../demos/pose/fixture-credit';
 import { PoseEngine } from '../demos/pose/pose-engine.service';
 import { PoseCloudService } from './pose-cloud.service';
-import { LatencySummary, summarize } from './stats';
+import {
+  CloudSummary as CloudTimings,
+  RESULTS_HEADER,
+  networkShare,
+  resultsRow,
+  summarizeRace,
+} from './race-summary';
+import { LatencySummary } from './stats';
 
 /** How many timed runs per tier. */
 const N = 20;
 /** JPEG quality for the frame sent to the cloud tier. */
 const JPEG_QUALITY = 0.85;
+/** Bundled clip for `?fixture=1`, the same one /pose uses. */
+const FIXTURE_VIDEO_URL = '/fixtures/pose.webm';
 
 type Phase = 'idle' | 'running' | 'done';
 
-/** Median/p95 of the cloud tier plus the server/network split. */
-interface CloudSummary {
-  readonly total: LatencySummary;
-  readonly server: LatencySummary;
-  /** median(total) − median(server), clamped ≥ 0 — the "distance" segment. */
-  readonly networkMedianMs: number;
+/** The cloud tier's timings (see race-summary.ts) plus what answered. */
+interface CloudSummary extends CloudTimings {
   readonly backend: string;
   readonly model: string;
 }
@@ -38,6 +45,10 @@ interface RaceResults {
   readonly localBackend: string | null;
   /** null when the cloud tier was unreachable/unavailable (see cloudError). */
   readonly cloud: CloudSummary | null;
+  /** The injected WAN delay this race ran with. */
+  readonly delayMs: number;
+  /** This race as a row for the results table (race-summary.ts). */
+  readonly row: string;
 }
 
 // SVG layout (fixed user-space; scales uniformly via viewBox).
@@ -54,7 +65,7 @@ const SVG_USABLE = 800;
  */
 @Component({
   selector: 'app-benchmark',
-  imports: [DecimalPipe],
+  imports: [DecimalPipe, FixtureCredit],
   templateUrl: './benchmark.html',
   styleUrl: './benchmark.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -64,9 +75,14 @@ export class Benchmark {
   private readonly engine = inject(PoseEngine);
   private readonly cloud = inject(PoseCloudService);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly route = inject(ActivatedRoute);
 
-  private readonly videoRef =
-    viewChild.required<ElementRef<HTMLVideoElement>>('video');
+  /** `?fixture=1` — race on the bundled clip instead of the live camera. */
+  protected readonly fixtureMode = this.route.snapshot.queryParamMap.get('fixture') === '1';
+  protected readonly resultsHeader = RESULTS_HEADER;
+  protected readonly copied = signal(false);
+
+  private readonly videoRef = viewChild.required<ElementRef<HTMLVideoElement>>('video');
 
   // --- State (all signals) --------------------------------------------------
   protected readonly phase = signal<Phase>('idle');
@@ -131,7 +147,7 @@ export class Benchmark {
       cloud: r.cloud
         ? {
             serverW: w(r.cloud.server.median),
-            networkW: w(Math.max(0, r.cloud.total.median - r.cloud.server.median)),
+            networkW: w(networkShare(r.cloud.total.median, r.cloud.server.median)),
             p95X: x(r.cloud.total.p95),
           }
         : null,
@@ -146,7 +162,11 @@ export class Benchmark {
   private setup(): void {
     const video = this.videoRef().nativeElement;
     void this.engine.load();
-    void this.camera.start(video);
+    if (this.fixtureMode) {
+      void this.camera.startFixture(video, FIXTURE_VIDEO_URL);
+    } else {
+      void this.camera.start(video);
+    }
     void this.refreshLatencyConfig();
   }
 
@@ -263,33 +283,45 @@ export class Benchmark {
       this.progress.set(i + 1);
     }
 
-    const local = summarize(localMs);
-    const cloud: CloudSummary | null =
-      cloudTotalMs.length > 0
-        ? {
-            total: summarize(cloudTotalMs),
-            server: summarize(cloudServerMs),
-            networkMedianMs: Math.max(
-              0,
-              summarize(cloudTotalMs).median - summarize(cloudServerMs).median,
-            ),
-            backend: cloudBackend,
-            model: cloudModel,
-          }
-        : null;
-
-    this.results.set({
-      n: N,
-      local,
-      localBackend: this.localBackend(),
-      cloud,
-    });
+    // Summarizing is race-summary.ts, the Act 3 exercise: if it throws, say so
+    // on the page instead of leaving the button stuck on "Running…".
+    try {
+      const summary = summarizeRace({
+        localMs,
+        cloudRoundTripMs: cloudTotalMs,
+        cloudServerMs: cloudServerMs,
+      });
+      const localBackend = this.localBackend();
+      this.results.set({
+        n: N,
+        local: summary.local,
+        localBackend,
+        cloud: summary.cloud
+          ? { ...summary.cloud, backend: cloudBackend, model: cloudModel }
+          : null,
+        delayMs: this.delayMs(),
+        row: resultsRow(this.delayMs(), localBackend ?? '?', summary),
+      });
+    } catch (err) {
+      this.raceError.set(err instanceof Error ? err.message : String(err));
+      this.phase.set('idle');
+      return;
+    }
+    this.copied.set(false);
     this.phase.set('done');
   }
 
+  /** Copy this race's results row, to paste into the table in WORKSHOP.md. */
+  protected async copyRow(row: string): Promise<void> {
+    try {
+      await navigator.clipboard.writeText(row);
+      this.copied.set(true);
+    } catch {
+      // Clipboard permission denied: the row is on screen to select by hand.
+    }
+  }
+
   private toJpeg(canvas: HTMLCanvasElement): Promise<Blob | null> {
-    return new Promise((resolve) =>
-      canvas.toBlob((b) => resolve(b), 'image/jpeg', JPEG_QUALITY),
-    );
+    return new Promise((resolve) => canvas.toBlob((b) => resolve(b), 'image/jpeg', JPEG_QUALITY));
   }
 }

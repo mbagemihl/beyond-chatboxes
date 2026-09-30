@@ -84,25 +84,3 @@ export function sentenceEmbeddings(
 ): number[][] {
   return meanPool(hidden, dims, mask).map(l2Normalize);
 }
-
-// =============================================================================
-// Backend + weights
-// =============================================================================
-
-/** Which accelerator to run on, and which weight file to load for it. */
-export interface EmbeddingCandidate {
-  readonly backend: 'webgpu' | 'wasm';
-  readonly dtype: 'fp32' | 'q8';
-}
-
-/**
- * The ordered list of (backend, dtype) pairs the worker tries. Quantization is
- * a deployment decision, not a detail: WebGPU gets full fp32 weights (int8 ops
- * only partially delegate to the GPU, so q8 would be slower there), while wasm
- * gets the 4x smaller q8 weights, which run faster on CPU for a small quality
- * cost. wasm is always the last resort, so the demo never ends up with nothing.
- */
-export function embeddingCandidates(webgpuUsable: boolean): EmbeddingCandidate[] {
-  const wasm: EmbeddingCandidate = { backend: 'wasm', dtype: 'q8' };
-  return webgpuUsable ? [{ backend: 'webgpu', dtype: 'fp32' }, wasm] : [wasm];
-}

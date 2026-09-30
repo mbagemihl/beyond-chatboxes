@@ -4,14 +4,16 @@ Browser-side ML demos (LiteRT.js, Transformers.js, Tesseract.js) in Angular,
 compared against a server-side "cloud" tier running on Spring Boot / Kotlin
 via DJL. These are **live stage demos**: reliability beats elegance, and nothing
 depends on network access at runtime except the explicit cloud-comparison call.
-See [`CLAUDE.md`](CLAUDE.md) for the full engineering conventions.
+See [`CLAUDE.md`](CLAUDE.md) for the full engineering conventions,
+[`STACK.md`](STACK.md) for an introduction to each ML technology used, and
+[`WORKSHOP.md`](WORKSHOP.md) for the hands-on workshop.
 
 ## Repository layout
 
 ```
 beyond-chatboxes/
 ├── frontend/            Angular 22 app — the browser-side ML demos live here
-│   └── proxy.conf.json  dev proxy: forwards /api to the backend on :8080
+│   └── proxy.conf.js    dev proxy: forwards /api to the backend (BACKEND_PORT, default :8080)
 ├── backend/             Spring Boot 4 / Kotlin app
 │                        - serves the built frontend from classpath:/static
 │                        - hosts /api/* (health now; the cloud tier later)
@@ -30,7 +32,7 @@ UI and the API from `http://localhost:8080`.
 | Tool    | Version                | Notes                                                        |
 |---------|------------------------|--------------------------------------------------------------|
 | Node.js | 22 / 24 LTS (or 25)    | This repo was scaffolded on Node 25; Angular 22 emits an `EBADENGINE` warning on odd Node releases — harmless, builds pass. |
-| JDK     | **21**                 | Backend is pinned to JDK 21. The Makefile points `JAVA_HOME` at SDKMAN's `21.0.2-open`; override with `make <target> JDK21=/path/to/jdk-21`. |
+| Java    | **21 or newer**        | The backend is compiled for Java 21 and runs on any later release (tested on 21 and 25). `scripts/find-java.sh` picks one from PATH, `JAVA_HOME`, SDKMAN or macOS `java_home`; no Java at all? `make jre` fetches a portable Temurin 21 runtime into `.tools/jre` (~45 MB). Override with `make <target> JAVA=/path/to/bin/java`. |
 | Gradle  | via wrapper (9.5.1)    | Use `backend/gradlew`; no global Gradle needed.              |
 | Angular | via `npx` (CLI 22)     | No global `@angular/cli` needed.                             |
 
@@ -43,13 +45,13 @@ builder — all per `CLAUDE.md`.
 Run the two modules in separate terminals:
 
 ```bash
-make dev-backend     # Spring Boot on http://localhost:8080  (JDK 21)
+make dev-backend     # Spring Boot on http://localhost:8080  (Java 21+)
 make dev-frontend    # ng serve on   http://localhost:4200
 ```
 
 During development you use the app at **http://localhost:4200**. Requests to
 `/api/*` are transparently proxied to the backend on `:8080`
-(see [`frontend/proxy.conf.json`](frontend/proxy.conf.json)), so there are no
+(see [`frontend/proxy.conf.js`](frontend/proxy.conf.js); `BACKEND_PORT` / `BACKEND_URL` move it), so there are no
 CORS concerns and no hard-coded backend URLs in the frontend.
 
 Quick check that the backend is up:
@@ -78,9 +80,8 @@ java -jar backend/build/libs/app.jar
 ```
 
 That single process serves the UI, all model/wasm artifacts, and the
-`/api/*` cloud tier — no dev servers, no network dependency. (Use a JDK 21
-`java`; e.g. `JAVA_HOME=$HOME/.sdkman/candidates/java/21.0.2-open` and
-`$JAVA_HOME/bin/java`.) See [`PRESENTER.md`](PRESENTER.md) for the full
+`/api/*` cloud tier — no dev servers, no network dependency. (Any Java 21 or
+newer runs it; the jar enables native access for ONNX Runtime itself.) See [`PRESENTER.md`](PRESENTER.md) for the full
 pre-talk checklist, keyboard shortcuts, and fixture fallback mode.
 
 ## Test
@@ -100,14 +101,20 @@ origin**, never a CDN at runtime. They are fetched at build time by
 its artifacts. Run `make help` to see all available targets.
 
 The server-side pose "cloud tier" runs the **same MoveNet architecture** the
-browser runs. Rather than ship a separate model, we convert our exact tflite to
-ONNX once with [`scripts/convert-movenet-onnx.sh`](scripts/convert-movenet-onnx.sh)
-(invoked automatically by `download-models.sh`; needs `python3`). It writes
+browser runs: an ONNX conversion of our exact tflite. Maintainers produce it once
+with [`scripts/convert-movenet-onnx.sh`](scripts/convert-movenet-onnx.sh) (needs
+Python 3.9–3.12 and ~300 MB of TensorFlow) and publish it as a release asset;
+`download-models.sh` fetches that file, checksum-pinned, and only falls back to
+converting locally when the download fails. It lands in
 `frontend/public/models/pose/movenet-singlepose-lightning.onnx`, which the
 backend loads via the `app.pose.model-path` property (`APP_POSE_MODEL_PATH`).
-Like all model artifacts, the ONNX file is **not committed** — it is produced at
-build time. Without it, `POST /api/infer/pose` returns a clean `503` and the
-benchmark degrades gracefully (local tier still runs; cloud shows "unavailable").
+Like all model artifacts, the ONNX file is **not committed**. Without it,
+`POST /api/infer/pose` returns a clean `503` and the benchmark degrades
+gracefully (local tier still runs; cloud shows "unavailable").
+
+For the workshop, `make backend-jar` builds a slim jar (the API without the
+bundled frontend) into `backend/dist/backend.jar`, and `make backend` runs it
+with plain `java -jar`: no Gradle on attendee machines.
 
 ## Running the benchmark on stage
 
@@ -115,12 +122,10 @@ The **Local vs Cloud** benchmark (`/benchmark`) races the in-browser model
 (LiteRT.js) against the server "cloud tier" (Spring Boot + DJL / ONNX Runtime)
 on the *same* captured frame, and shows the latency distributions side by side.
 
-**One-time setup** (produces the server model):
+**One-time setup** (fetches the browser and server models):
 
 ```bash
-scripts/download-models.sh          # fetches the tflite + converts it to ONNX
-# or just the conversion, if the tflite is already present:
-scripts/convert-movenet-onnx.sh     # needs python3; writes the .onnx once
+scripts/download-models.sh
 ```
 
 **On stage**, run the two modules (two terminals):

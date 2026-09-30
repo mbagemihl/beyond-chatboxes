@@ -6,6 +6,12 @@
       "runtimeExecutable": "npm",
       "runtimeArgs": ["--prefix", "frontend", "start"],
       "port": 4200
+    },
+    {
+      "name": "frontend-dev-9099",
+      "runtimeExecutable": "env",
+      "runtimeArgs": ["BACKEND_PORT=9099", "npm", "--prefix", "frontend", "start"],
+      "port": 4200
     }
   ]
 }

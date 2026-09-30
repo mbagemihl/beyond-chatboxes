@@ -8,10 +8,16 @@ plugins {
 group = "com.consid.beyondchatboxes"
 version = "0.0.1-SNAPSHOT"
 
+// Build with whatever JDK 21 or newer runs Gradle, but always emit Java 21
+// bytecode, so the jar runs on 21 and every later release. (No toolchain
+// block: that would demand exactly a JDK 21 and fail offline without one.)
 java {
-	toolchain {
-		languageVersion = JavaLanguageVersion.of(21)
-	}
+	sourceCompatibility = JavaVersion.VERSION_21
+	targetCompatibility = JavaVersion.VERSION_21
+}
+
+tasks.withType<JavaCompile> {
+	options.release = 21
 }
 
 repositories {
@@ -40,12 +46,23 @@ dependencies {
 
 kotlin {
 	compilerOptions {
+		jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_21
 		freeCompilerArgs.addAll("-Xjsr305=strict", "-Xannotation-default-target=param-property")
 	}
 }
 
+// ONNX Runtime loads its native library with System.load, a "restricted
+// method" since JDK 22: newer JDKs warn now and will block it later unless
+// native access is enabled. Enable it for tests, bootRun and the jar itself.
+val nativeAccess = "--enable-native-access=ALL-UNNAMED"
+
 tasks.withType<Test> {
 	useJUnitPlatform()
+	jvmArgs(nativeAccess)
+}
+
+tasks.named<org.springframework.boot.gradle.tasks.run.BootRun>("bootRun") {
+	jvmArgs(nativeAccess)
 }
 
 // Only produce the runnable Spring Boot fat jar, not the plain library jar,
@@ -57,4 +74,14 @@ tasks.named<Jar>("jar") {
 
 tasks.named<org.springframework.boot.gradle.tasks.bundling.BootJar>("bootJar") {
 	archiveFileName = "app.jar"
+	// The same for `java -jar app.jar` (JDK 22+ reads this; 21 ignores it).
+	manifest {
+		attributes("Enable-Native-Access" to "ALL-UNNAMED")
+	}
+	// `-Pslim` builds the workshop jar: the API only, without the copied-in
+	// frontend (static/ holds ~160 MB of models and wasm the browser serves via
+	// `ng serve` anyway). Attendees run it with `make backend`, no Gradle needed.
+	if (project.hasProperty("slim")) {
+		exclude("static/**")
+	}
 }

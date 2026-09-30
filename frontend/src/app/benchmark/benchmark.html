@@ -1,6 +1,11 @@
 <section class="bench">
   <header class="bench__header">
-    <h1>Local vs Cloud — same model, measured</h1>
+    <h1>
+      Local vs Cloud — same model, measured
+      @if (fixtureMode) {
+        <span class="fixture-badge">fixture</span>
+      }
+    </h1>
     <p class="bench__subtitle">
       One captured frame, run {{ total() }}× in the browser (LiteRT.js) and {{ total() }}×
       on the server (DJL · ONNX Runtime), interleaved.
@@ -11,11 +16,21 @@
     <!-- Left: camera preview + controls -->
     <div class="bench__left">
       <div class="bench__stage">
-        <video #video class="bench__video" playsinline muted autoplay></video>
+        <video
+          #video
+          class="bench__video"
+          [class.bench__video--mirror]="!fixtureMode"
+          playsinline
+          muted
+          autoplay
+        ></video>
         @if (overlayMessage(); as msg) {
           <div class="bench__overlay" role="status"><p>{{ msg }}</p></div>
         }
       </div>
+      @if (fixtureMode) {
+        <app-fixture-credit />
+      }
 
       <div class="bench__local-badge">
         <span class="label">local engine</span>
@@ -151,6 +166,17 @@
                 <span class="legend__engine">{{ cloud.backend }} · {{ cloud.model }}</span>
               </div>
             }
+          </div>
+
+          <div class="bench__row">
+            <div class="bench__row-head">
+              <span>Your results row (+{{ r.delayMs }} ms)</span>
+              <button type="button" (click)="copyRow(r.row)">
+                {{ copied() ? 'Copied' : 'Copy' }}
+              </button>
+            </div>
+            <pre>{{ resultsHeader }}
+{{ r.row }}</pre>
           </div>
 
           @if (cloudError(); as err) {
