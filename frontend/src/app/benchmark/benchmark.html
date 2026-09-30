@@ -16,7 +16,14 @@
     <!-- Left: camera preview + controls -->
     <div class="bench__left">
       <div class="bench__stage">
-        <video #video class="bench__video" playsinline muted autoplay></video>
+        <video
+          #video
+          class="bench__video"
+          [class.bench__video--mirror]="!fixtureMode"
+          playsinline
+          muted
+          autoplay
+        ></video>
         @if (overlayMessage(); as msg) {
           <div class="bench__overlay" role="status"><p>{{ msg }}</p></div>
         }

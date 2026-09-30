@@ -57,7 +57,13 @@ $muted: #6b7f95;
   width: 100%;
   height: 100%;
   object-fit: cover;
-  transform: scaleX(-1); // mirror, so the presenter sees themselves naturally
+}
+
+// Mirror the live camera only, so the presenter sees themselves naturally. The
+// fixture clip is a recording and stays the right way round. (Display only:
+// the captured frame both tiers race on is never flipped.)
+.bench__video--mirror {
+  transform: scaleX(-1);
 }
 
 .bench__overlay {
