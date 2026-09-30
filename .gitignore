@@ -14,6 +14,8 @@
 
 # Attendee attempts copied aside by `make solve-N` (scripts/workshop-step.sh)
 /.workshop-backups/
+# Portable Java runtime from `make jre` (scripts/fetch-jre.sh).
+/.tools/
 
 # OS / editor noise
 .DS_Store

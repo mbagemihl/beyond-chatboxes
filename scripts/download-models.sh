@@ -209,5 +209,19 @@ fetch_verify "$TESS_BASE/eng.traineddata" "$TESS_DIR/eng.traineddata" \
 fetch_verify "$TESS_BASE/deu.traineddata" "$TESS_DIR/deu.traineddata" \
   "19d219bbb6672c869d20a9636c6816a81eb9a71796cb93ebe0cb1530e2cdb22d"
 
+# =============================================================================
+# Java for the backend (Act 1) — only if this machine has no Java 21+
+# =============================================================================
+#
+# Not a model, but the same kind of build-time fetch: a portable, pinned
+# Temurin 21 JRE into .tools/jre (scripts/fetch-jre.sh). Skipped entirely when
+# any Java 21 or newer is already installed.
+echo "==> Java for the backend"
+if JAVA_FOUND="$("$SCRIPT_DIR/find-java.sh")"; then
+  echo "  • found $("$JAVA_FOUND" -version 2>&1 | head -1), nothing to download"
+else
+  "$SCRIPT_DIR/fetch-jre.sh"
+fi
+
 echo
 echo "download-models.sh: done."

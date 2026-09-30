@@ -36,24 +36,29 @@ Nobody proceeds until this prints **READY**. It checks:
 - every model and wasm artifact, including *truncated* downloads (the classic
   room failure);
 - the fixtures;
-- **Java 21+, the prebuilt backend jar and the server ONNX model**;
+- **Java 21 or newer (installed, or the portable one from `make jre`), the
+  prebuilt backend jar and the server ONNX model**;
 - that ports 4200 and the backend port are free.
 
 Each failure comes with the exact command that fixes it.
 
 **Distribution matters more than anything else in this document.** A cold start
 downloads about **350 MB** per attendee (npm ~212 MB compressed, models ~134
-MB), plus the **169 MB backend jar**, plus a JDK 21 if they don't have one.
+MB), plus the **169 MB backend jar**, plus a ~45 MB portable Java 21 runtime
+(`make jre`) for anyone without a Java 21 or newer.
 Thirty people fetching that over conference wifi is how you lose the first hour.
 
 Hand out a USB stick or shared drive with:
 - `frontend/node_modules/` and `frontend/public/` pre-seeded (models, wasm,
   fixtures);
 - `backend/dist/backend.jar`, built with `make backend-jar`;
-- JDK 21 installers for macOS / Windows / Linux.
+- a portable Java runtime per platform, for attendees without a Java 21 or
+  newer: `JRE_PLATFORM=<platform> JRE_DIR=<stick>/jre-<platform>
+  scripts/fetch-jre.sh` for `mac-aarch64`, `mac-x64`, `linux-x64` (WSL) and
+  `linux-aarch64`. Attendees copy the matching folder to `.tools/jre`.
 
-Step zero is then *copy a folder*, not *npm install*. Put "install a JDK 21 and
-Node 22 or 24" in the pre-lab email.
+Step zero is then *copy a folder*, not *npm install*. Put "Java 21 or newer
+(any vendor; or run `make jre`) and Node 22 or 24" in the pre-lab email.
 
 Assume nothing about the network during the workshop: every act runs offline.
 
@@ -455,8 +460,9 @@ make solve-N && make verify-N                    # must PASS: the answer is righ
 - **Port conflicts are common.** VM and container proxies love `:8080`. `make
   doctor` spots them and prints the `BACKEND_PORT=9099` fix, which must be given
   to `make backend`, `make dev-frontend` and `make measure-backend` alike.
-- **No JDK, no Act 1.** Anyone who arrives without a JDK 21 can still do Acts 2
-  and 3 against the presenter's backend (`BACKEND_URL=…`, see the Act 3
-  stretch).
+- **No Java? `make jre`.** Any Java 21 or newer works; anyone with none gets a
+  portable one with `make jre` (or from the USB stick). If even that fails,
+  they can still do Acts 2 and 3 against the presenter's backend
+  (`BACKEND_URL=…`, see the Act 3 stretch).
 - **Pin Node.** Tell attendees "Node 22 or 24" before they discover the
   EBADENGINE warning independently.

@@ -16,7 +16,7 @@ make build                   # ng build → embedded in backend/build/libs/app.j
 ## Showtime
 
 ```bash
-java -jar backend/build/libs/app.jar     # JDK 21
+java -jar backend/build/libs/app.jar     # Java 21 or newer
 ```
 
 Open **http://localhost:8080** — the landing page links all the demos.

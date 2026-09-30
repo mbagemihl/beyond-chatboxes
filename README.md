@@ -32,7 +32,7 @@ UI and the API from `http://localhost:8080`.
 | Tool    | Version                | Notes                                                        |
 |---------|------------------------|--------------------------------------------------------------|
 | Node.js | 22 / 24 LTS (or 25)    | This repo was scaffolded on Node 25; Angular 22 emits an `EBADENGINE` warning on odd Node releases — harmless, builds pass. |
-| JDK     | **21**                 | Backend is pinned to JDK 21. The Makefile points `JAVA_HOME` at SDKMAN's `21.0.2-open`; override with `make <target> JDK21=/path/to/jdk-21`. |
+| Java    | **21 or newer**        | The backend is compiled for Java 21 and runs on any later release (tested on 21 and 25). `scripts/find-java.sh` picks one from PATH, `JAVA_HOME`, SDKMAN or macOS `java_home`; no Java at all? `make jre` fetches a portable Temurin 21 runtime into `.tools/jre` (~45 MB). Override with `make <target> JAVA=/path/to/bin/java`. |
 | Gradle  | via wrapper (9.5.1)    | Use `backend/gradlew`; no global Gradle needed.              |
 | Angular | via `npx` (CLI 22)     | No global `@angular/cli` needed.                             |
 
@@ -45,7 +45,7 @@ builder — all per `CLAUDE.md`.
 Run the two modules in separate terminals:
 
 ```bash
-make dev-backend     # Spring Boot on http://localhost:8080  (JDK 21)
+make dev-backend     # Spring Boot on http://localhost:8080  (Java 21+)
 make dev-frontend    # ng serve on   http://localhost:4200
 ```
 
@@ -80,9 +80,8 @@ java -jar backend/build/libs/app.jar
 ```
 
 That single process serves the UI, all model/wasm artifacts, and the
-`/api/*` cloud tier — no dev servers, no network dependency. (Use a JDK 21
-`java`; e.g. `JAVA_HOME=$HOME/.sdkman/candidates/java/21.0.2-open` and
-`$JAVA_HOME/bin/java`.) See [`PRESENTER.md`](PRESENTER.md) for the full
+`/api/*` cloud tier — no dev servers, no network dependency. (Any Java 21 or
+newer runs it; the jar enables native access for ONNX Runtime itself.) See [`PRESENTER.md`](PRESENTER.md) for the full
 pre-talk checklist, keyboard shortcuts, and fixture fallback mode.
 
 ## Test

@@ -19,8 +19,9 @@
 #     prints that command rather than duplicating the hashes here (two copies
 #     of a hash list is a maintenance trap).
 #   * The lab starts on the JVM (Act 1) and races it in Act 3, so the backend
-#     is REQUIRED: a JDK 21+, the prebuilt jar and the server ONNX model are
-#     blocking checks, like Node and the browser models.
+#     is REQUIRED: a Java 21+ (installed, or the portable one from `make jre`),
+#     the prebuilt jar and the server ONNX model are blocking checks, like Node
+#     and the browser models.
 #
 set -uo pipefail
 
@@ -222,28 +223,19 @@ fi
 head2 "Act 1 — the pose backend (Spring Boot + DJL)"
 # =============================================================================
 
-# The same `java` that `make backend` uses: the pinned SDKMAN JDK 21 if it is
-# there, otherwise whatever is on PATH. Any JDK 21 or newer runs the jar.
-JDK21="${JDK21:-$HOME/.sdkman/candidates/java/21.0.2-open}"
-if [[ -x "$JDK21/bin/java" ]]; then
-  JAVA_BIN="$JDK21/bin/java"
-else
-  JAVA_BIN="$(command -v java || true)"
-fi
-JAVA_MAJOR=0
+# The same `java` that `make backend` uses (scripts/find-java.sh decides for
+# both). Any release 21 or newer runs the jar.
+JAVA_BIN="$("$SCRIPT_DIR/find-java.sh" || true)"
 if [[ -n "$JAVA_BIN" ]]; then
   JDK_VER="$("$JAVA_BIN" -version 2>&1 | head -1)"
-  JAVA_MAJOR="$(printf '%s' "$JDK_VER" | sed -nE 's/.*version "([0-9]+).*/\1/p')"
-  JAVA_MAJOR="${JAVA_MAJOR:-0}"
-fi
-if (( JAVA_MAJOR >= 21 )); then
-  ok "Java $JAVA_MAJOR ($JAVA_BIN)"
-elif [[ -n "$JAVA_BIN" ]]; then
-  bad "Java is too old — $JDK_VER (need 21 or newer)" \
-      "Install a JDK 21 (e.g. sdk install java 21.0.2-open, or the installer on the workshop USB stick)"
+  if [[ "$JAVA_BIN" == "$REPO_ROOT/.tools/"* ]]; then
+    ok "Java: ${JDK_VER} (portable runtime in .tools/jre)"
+  else
+    ok "Java: ${JDK_VER} (${JAVA_BIN})"
+  fi
 else
-  bad "No Java found (need JDK 21 or newer)" \
-      "Install a JDK 21 (e.g. sdk install java 21.0.2-open, or the installer on the workshop USB stick)"
+  bad "No Java 21 or newer found" \
+      "Run: make jre (downloads a portable Java 21 runtime, ~45 MB), or install any JDK 21 or newer"
 fi
 
 require_file "$REPO_ROOT/backend/dist/backend.jar" 100000000 "Prebuilt backend (backend/dist/backend.jar)" \
