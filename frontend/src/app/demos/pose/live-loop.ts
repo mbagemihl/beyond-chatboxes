@@ -3,6 +3,23 @@
  * canvas, and drive camera frames through the model without ever blocking the
  * page.
  *
+ * ┌─────────────────────────────────────────────────────────────────────────┐
+ * │ WORKSHOP ACT 2b — Live camera, real-time skeleton                       │
+ * │                                                                         │
+ * │ The model works (Act 2a). Now make it live: paint every display frame,  │
+ * │ run the model as often as it can keep up, and never let one wait for   │
+ * │ the other.                                                              │
+ * │                                                                         │
+ * │ Implement the TODOs below (drawSkeleton and createFrameLoop are core).  │
+ * │   Check your work:  make verify-2                                       │
+ * │   Stuck?            make solve-2                                        │
+ * │                                                                         │
+ * │ Watch it work:  http://localhost:4200/pose?fixture=1                    │
+ * │   stage stays black      → createFrameLoop schedules no frames yet      │
+ * │   video but no skeleton  → drawSkeleton draws nothing yet               │
+ * │   skeleton, fps moving   → done; try /pose for your own webcam          │
+ * └─────────────────────────────────────────────────────────────────────────┘
+ *
  * Kept free of Angular and of real browser globals: the canvas context, the
  * frame scheduler and the model are all passed in, so live-loop.spec.ts can
  * check each piece with fakes (a recording canvas, a manual clock).
@@ -42,13 +59,22 @@ export interface DrawOptions {
 }
 
 /**
- * Draw a skeleton over a `w` × `h` canvas. Keypoints come from the model in
- * NORMALIZED coordinates (0..1 across the frame), so each one lands at pixel
- * `(x * w, y * h)`.
+ * TODO (act 2b, core) — Draw a skeleton over a `w` × `h` canvas with the 2D
+ * canvas API.
  *
- * Bones first (one line per `SKELETON_EDGES` pair, skipped when either end is
- * below the threshold, coloured by the weaker end), then one dot per keypoint
- * above the threshold, so dots sit on top of the lines.
+ * The model gives NORMALIZED coordinates (0..1 across the frame), so a keypoint
+ * lands at pixel (x * w, y * h). Anything scoring below `threshold` is skipped.
+ *
+ *   1. Bones: for each [a, b] pair in the given SKELETON_EDGES, skip it unless
+ *      BOTH keypoints reach the threshold; otherwise set `ctx.strokeStyle` to
+ *      `color(min(scoreA, scoreB))`, then beginPath → moveTo(a) → lineTo(b) →
+ *      stroke. Set `ctx.lineWidth = Math.max(2, w / 240)` once, first.
+ *   2. Dots, after the bones so they sit on top: for each keypoint at or above
+ *      the threshold, `ctx.fillStyle = color(score)`, then beginPath →
+ *      arc(x, y, radius, 0, 2π) → fill, with `radius = Math.max(3, w / 160)`.
+ *
+ * Draw nothing when `kps` is null. `threshold` and `color` come from `options`,
+ * falling back to KP_THRESHOLD and the given `confColor`.
  */
 export function drawSkeleton(
   ctx: Canvas2DLike,
@@ -56,39 +82,7 @@ export function drawSkeleton(
   w: number,
   h: number,
   options: DrawOptions = {},
-): void {
-  if (!kps) {
-    return;
-  }
-  const threshold = options.threshold ?? KP_THRESHOLD;
-  const color = options.color ?? ((conf: number) => confColor(conf, threshold));
-
-  ctx.lineWidth = Math.max(2, w / 240);
-  for (const [a, b] of SKELETON_EDGES) {
-    const ka = kps[a];
-    const kb = kps[b];
-    const conf = Math.min(ka.score, kb.score);
-    if (conf < threshold) {
-      continue;
-    }
-    ctx.strokeStyle = color(conf);
-    ctx.beginPath();
-    ctx.moveTo(ka.x * w, ka.y * h);
-    ctx.lineTo(kb.x * w, kb.y * h);
-    ctx.stroke();
-  }
-
-  const radius = Math.max(3, w / 160);
-  for (const kp of kps) {
-    if (kp.score < threshold) {
-      continue;
-    }
-    ctx.fillStyle = color(kp.score);
-    ctx.beginPath();
-    ctx.arc(kp.x * w, kp.y * h, radius, 0, Math.PI * 2);
-    ctx.fill();
-  }
-}
+): void {}
 
 // =============================================================================
 // The frame loop
@@ -114,62 +108,28 @@ export interface FrameLoop {
 }
 
 /**
- * Drive a camera through a model in real time. Every display frame:
- *   1. schedule the next frame first, so a throwing `draw` cannot end the loop;
- *   2. `draw` with the latest finished result;
- *   3. if no inference is in flight, start one.
+ * TODO (act 2b, core) — Drive a camera through a model in real time.
  *
- * Drawing and inference are decoupled: the page repaints at 60 fps while the
- * model runs at whatever rate it can, and at most ONE inference is ever in
- * flight (queueing more would only add latency). After `stop()` no further
- * frames run, and a result that lands late is dropped.
+ * `start()` schedules the first frame with `options.requestFrame(tick)`. Every
+ * tick then:
+ *   1. schedules the NEXT frame first (so a throwing `draw` cannot end the
+ *      loop) and remembers its id for `stop()`;
+ *   2. calls `options.draw(latest)` with the latest finished result (null
+ *      until the first one);
+ *   3. if no inference is in flight, calls `options.infer()`. It returns null
+ *      while the model is not ready (then do nothing), or a promise. While that
+ *      promise is pending, start no other inference. When it resolves to a
+ *      non-null result, store it as `latest` and call `onResult`; when it
+ *      rejects, call `onError`; either way the next frame may start a new one.
+ *
+ * `stop()` stops scheduling (`options.cancelFrame(id)`), and a result that
+ * lands after `stop()` is dropped. Calling `start()` twice starts one loop.
+ *
+ * Why one inference at a time: queueing more would only make every result
+ * older by the time it is drawn. The page repaints at 60 fps regardless.
  */
 export function createFrameLoop<T>(options: FrameLoopOptions<T>): FrameLoop {
-  let frameId = 0;
-  let running = false;
-  let inFlight = false;
-  let latest: T | null = null;
-
-  const tick = (): void => {
-    if (!running) {
-      return;
-    }
-    frameId = options.requestFrame(tick);
-    options.draw(latest);
-    if (inFlight) {
-      return;
-    }
-    const pending = options.infer();
-    if (!pending) {
-      return;
-    }
-    inFlight = true;
-    pending
-      .then((result) => {
-        if (running && result !== null) {
-          latest = result;
-          options.onResult?.(result);
-        }
-      })
-      .catch((err: unknown) => options.onError?.(err))
-      .finally(() => {
-        inFlight = false;
-      });
-  };
-
-  return {
-    start(): void {
-      if (running) {
-        return;
-      }
-      running = true;
-      frameId = options.requestFrame(tick);
-    },
-    stop(): void {
-      running = false;
-      options.cancelFrame(frameId);
-    },
-  };
+  return { start(): void {}, stop(): void {} };
 }
 
 // =============================================================================
@@ -192,37 +152,23 @@ export interface StatsThrottle {
 }
 
 /**
- * Turn per-frame measurements into HUD numbers without re-rendering the page
- * 60 times a second: count inferences and keep the last `window` durations,
- * and publish only when `intervalMs` has passed since the last publish (or
- * since `startedAt`). fps = inferences since last publish × 1000 / elapsed ms;
- * the count resets after each publish, the duration window does not.
+ * TODO (act 2b, stretch) — Turn per-frame measurements into HUD numbers
+ * without re-rendering the page 60 times a second.
+ *
+ * `record(ms)` counts one finished inference and keeps its duration (only the
+ * last `window` durations). `maybePublish(now, publish)` does nothing until
+ * `intervalMs` has passed since the last publish (or since `startedAt`); then
+ * it calls `publish({ fps, avgMs })` with
+ *   fps   = inferences since the last publish × 1000 / elapsed ms
+ *   avgMs = the mean of the kept durations (0 when there are none)
+ * and resets the count (not the durations) and the publish time.
+ *
+ * Until you do this the HUD shows 0 fps and 0 ms.
  */
 export function createStatsThrottle(
   intervalMs: number,
   window: number,
   startedAt: number,
 ): StatsThrottle {
-  const samples: number[] = [];
-  let count = 0;
-  let lastPublish = startedAt;
-  return {
-    record(ms: number): void {
-      count++;
-      samples.push(ms);
-      if (samples.length > window) {
-        samples.shift();
-      }
-    },
-    maybePublish(now: number, publish: (stats: LiveStats) => void): void {
-      const elapsed = now - lastPublish;
-      if (elapsed < intervalMs) {
-        return;
-      }
-      const avgMs = samples.length === 0 ? 0 : samples.reduce((a, b) => a + b, 0) / samples.length;
-      publish({ fps: (count * 1000) / elapsed, avgMs });
-      count = 0;
-      lastPublish = now;
-    },
-  };
+  return { record(): void {}, maybePublish(): void {} };
 }
