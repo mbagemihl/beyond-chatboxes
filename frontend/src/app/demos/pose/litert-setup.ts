@@ -3,6 +3,25 @@
  * per function: start the runtime, fetch the model, compile it for the best
  * accelerator, and push a tensor through it.
  *
+ * ┌─────────────────────────────────────────────────────────────────────────┐
+ * │ WORKSHOP ACT 2a — Into the browser: one still image                     │
+ * │                                                                         │
+ * │ Move the Act 1 backend's model into the browser. Each TODO below names  │
+ * │ the DJL call it replaces (BACKEND-TOUR.md, and the table below).        │
+ * │ Five LiteRT.js calls do it: loadLiteRt, loadAndCompile, new Tensor,     │
+ * │ model.run, tensor.delete().                                             │
+ * │                                                                         │
+ * │ Implement the TODOs below, in order (steps 1–4 are core).               │
+ * │   Check your work:  lab verify 1                                        │
+ * │   Stuck?            lab solve 1                                         │
+ * │                                                                         │
+ * │ Watch it work:  http://localhost:4200/pose/still                        │
+ * │ The error overlay names the next step until the skeleton appears; then  │
+ * │ press "Compare with backend" (keep lab backend running).                │
+ * │ Call the library through `api` (e.g. `api.loadLiteRt(...)`), never by   │
+ * │ importing it: that is what lets the specs check each call.              │
+ * └─────────────────────────────────────────────────────────────────────────┘
+ *
  * LiteRT.js is Google's browser runtime for `.tflite` models (the successor of
  * TensorFlow Lite for the web). Its API is small, and these five calls are the
  * whole lifecycle: `loadLiteRt`, `loadAndCompile`, `new Tensor`, `model.run`,
@@ -110,26 +129,23 @@ function messageOf(err: unknown): string {
 // =============================================================================
 
 /**
- * Start the LiteRT.js WebAssembly runtime, loaded from OUR origin (`wasmPath`,
- * e.g. `/wasm/litert/`) — never a CDN, so the demo works offline.
+ * TODO (act 2a, step 1) — [DJL: ONNX Runtime loading its native library]
+ * Start the LiteRT.js WebAssembly runtime, loaded from
+ * OUR origin: `api.loadLiteRt(wasmPath)` with e.g. `/wasm/litert/`. Never a
+ * CDN, so the demo works offline.
  *
- * DJL counterpart: ONNX Runtime extracting and loading its native library
- * the first time an engine is used. Here the "native library" is WebAssembly.
+ * The runtime is global to the page. If another demo already started it,
+ * `api.getGlobalLiteRtPromise()` returns that load (otherwise `undefined`):
+ * wait for it instead of loading a second copy.
  *
- * The runtime is global to the page: if another demo already started it,
- * `getGlobalLiteRtPromise()` returns that load, and we wait for it instead of
- * loading a second copy.
+ * If loading fails, throw a `SetupError` whose message names `wasmPath` and
+ * hints at the fix ("was the wasm bundle copied by npm postinstall?"). That
+ * message is exactly what the demo's error overlay will show.
  */
 export async function startRuntime(api: LiteRtApi, wasmPath: string): Promise<void> {
-  try {
-    const running = api.getGlobalLiteRtPromise();
-    await (running ?? api.loadLiteRt(wasmPath));
-  } catch (err) {
-    throw new SetupError(
-      `LiteRT runtime failed to load from ${wasmPath}. ` +
-        `Was the wasm bundle copied (npm postinstall)? ${messageOf(err)}`,
-    );
-  }
+  throw new SetupError(
+    'Act 2a, step 1 of 4: start the LiteRT.js runtime. Implement startRuntime() in litert-setup.ts.',
+  );
 }
 
 // =============================================================================
@@ -137,37 +153,38 @@ export async function startRuntime(api: LiteRtApi, wasmPath: string): Promise<vo
 // =============================================================================
 
 /**
- * Download the model as bytes. DJL counterpart: `optModelPath(path)` reading
- * the .onnx from disk; in the browser the model is a file on our own server.
- * We fetch it ourselves (rather than handing
- * LiteRT.js the URL) to give a precise error when the file is missing, and to
- * reuse the same bytes if the first accelerator fails to compile.
+ * TODO (act 2a, step 2) — [DJL: optModelPath(path) reading the .onnx]
+ * Download the model file and return its bytes
+ * (`new Uint8Array(await res.arrayBuffer())`). Use `fetchFn`, not `fetch`
+ * directly, so the specs can hand you a fake response.
+ *
+ * We fetch it ourselves (rather than handing LiteRT.js the URL) to give a
+ * precise error when the file is missing, and to reuse the same bytes if the
+ * first accelerator fails to compile. Throw a `SetupError`:
+ *   * on a non-OK response: include the status code, the URL, and the fix,
+ *     "Run scripts/download-models.sh.";
+ *   * when the fetch itself fails (network, CORS).
  */
 export async function fetchModelBytes(
   url: string,
   fetchFn: typeof fetch = fetch,
 ): Promise<Uint8Array> {
-  let res: Response;
-  try {
-    res = await fetchFn(url);
-  } catch (err) {
-    throw new SetupError(`Could not fetch the model: ${messageOf(err)}`);
-  }
-  if (!res.ok) {
-    throw new SetupError(
-      `Model file missing (${res.status}) at ${url}. Run scripts/download-models.sh.`,
-    );
-  }
-  return new Uint8Array(await res.arrayBuffer());
+  throw new SetupError(
+    'Act 2a, step 2 of 4: fetch the model file. Implement fetchModelBytes() in litert-setup.ts.',
+  );
 }
 
 // =============================================================================
 // Step 3 — compile for the best accelerator
 // =============================================================================
 
-/** WebGPU first when the browser has it, and wasm always as the last resort. */
+/**
+ * TODO (act 2a, step 3a) — Which accelerators to try, in order: WebGPU first
+ * when `api.isWebGPUSupported()`, and wasm ALWAYS as the last resort, so the
+ * demo never ends up with nothing. Until you do this, everyone runs on wasm.
+ */
 export function acceleratorsToTry(api: LiteRtApi): Accelerator[] {
-  return api.isWebGPUSupported() ? ['webgpu', 'wasm'] : ['wasm'];
+  return ['wasm'];
 }
 
 /** A model that compiled AND ran, and the accelerator it runs on. */
@@ -177,17 +194,17 @@ export interface ReadyModel {
 }
 
 /**
- * Compile the model for each accelerator in turn and keep the first one that
- * both compiles and passes `warmup`. DJL counterpart: `Criteria.builder()
- * …optEngine("OnnxRuntime").build().loadModel()` plus the `@PostConstruct`
- * warmup in PoseInferenceService.kt — except the browser has a choice of
- * accelerator the server did not (WebGPU or wasm). A backend that compiles can still fail to
- * execute (a WebGPU adapter without a working device is common on VMs), so
- * compiling alone proves nothing.
+ * TODO (act 2a, step 3b) — [DJL: Criteria…optEngine("OnnxRuntime")…loadModel()
+ * plus the @PostConstruct warmup] Compile the model for each accelerator in turn
+ * (`api.loadAndCompile(bytes, { accelerator })`) and return the first one that
+ * both compiles AND passes `warmup(model)`.
  *
- * A compile error is logged and skipped. A model that compiled but failed its
- * warmup must be deleted — LiteRT.js memory is freed manually, never by the
- * garbage collector.
+ * A backend that compiles can still fail to execute (a WebGPU adapter without
+ * a working device is common on VMs), so compiling alone proves nothing.
+ *   * A compile error: log it (`console.warn`) and try the next accelerator.
+ *   * Compiled but failed warmup: call `model.delete()` before moving on.
+ *     LiteRT.js memory is freed manually, never by the garbage collector.
+ *   * Nothing worked: throw a `SetupError`.
  */
 export async function compileOnBestAccelerator(
   api: LiteRtApi,
@@ -195,21 +212,9 @@ export async function compileOnBestAccelerator(
   accelerators: readonly Accelerator[],
   warmup: (model: ModelLike) => Promise<boolean>,
 ): Promise<ReadyModel> {
-  for (const accelerator of accelerators) {
-    let model: ModelLike;
-    try {
-      model = await api.loadAndCompile(bytes, { accelerator });
-    } catch (err) {
-      console.warn(`[litert] '${accelerator}' compile failed:`, err);
-      continue;
-    }
-    if (await warmup(model)) {
-      return { model, accelerator };
-    }
-    console.warn(`[litert] '${accelerator}' compiled but failed warmup; trying next`);
-    model.delete();
-  }
-  throw new SetupError('The model failed to run on any available backend (WebGPU / wasm).');
+  throw new SetupError(
+    'Act 2a, step 3 of 4: compile the model. Implement compileOnBestAccelerator() in litert-setup.ts.',
+  );
 }
 
 // =============================================================================
@@ -224,20 +229,17 @@ export interface RunResult {
 }
 
 /**
- * Wrap `input` in a tensor of `shape`, run the model, and read back the first
- * output. DJL counterpart: `MoveNetTranslator.processInput` building the
- * NDArray, `predictor.predict`, and `processOutput` reading it as floats. (The
- * ONNX model wants uint8 input; this tflite wants int32 — each model's file
- * says which, see readInputSpec.) `run` returns positional outputs (an array) for a model's default
- * signature, or named ones (a record) — take the first either way.
+ * TODO (act 2a, step 4) — [DJL: Translator.processInput (NDManager.create),
+ * predictor.predict, processOutput] Run one inference:
+ *   1. wrap `input` in a tensor: `api.createTensor(input, shape)`;
+ *   2. `await model.run(tensor)` — it returns positional outputs (an array) or
+ *      named ones (a record); take the first output either way;
+ *   3. `await output.data()` — async, because on WebGPU the result lives on
+ *      the GPU and has to be copied back. Time steps 2 and 3 together with
+ *      `performance.now()`, or the number on the HUD is a lie.
  *
- * Reading the output (`await tensor.data()`) is async because on WebGPU the
- * result lives on the GPU and has to be copied back; time it together with
- * `run`, or the number on the HUD is a lie.
- *
- * Every tensor — the input and ALL outputs — must be deleted afterwards, even
- * when `run` throws. At 30 fps a leak is 30 tensors a second. (DJL frees
- * NDArrays when their NDManager closes; LiteRT.js has no such scope.)
+ * Then delete EVERY tensor — the input and all outputs — even when `run`
+ * throws (use `finally`). At 30 fps a leak is 30 tensors a second.
  */
 export async function runModel(
   api: LiteRtApi,
@@ -245,23 +247,9 @@ export async function runModel(
   input: TypedArray,
   shape: number[],
 ): Promise<RunResult> {
-  const tensor = api.createTensor(input, shape);
-  let outputs: TensorLike[] = [];
-  try {
-    const t0 = performance.now();
-    const result = await model.run(tensor);
-    outputs = Array.isArray(result) ? result : Object.values(result);
-    if (outputs.length === 0) {
-      throw new SetupError('The model returned no outputs.');
-    }
-    const output = await outputs[0].data();
-    return { output, ms: performance.now() - t0 };
-  } finally {
-    tensor.delete();
-    for (const t of outputs) {
-      t.delete();
-    }
-  }
+  throw new SetupError(
+    'Act 2a, step 4 of 4: run the model. Implement runModel() in litert-setup.ts.',
+  );
 }
 
 // =============================================================================
@@ -276,18 +264,16 @@ export interface InputSpec {
 }
 
 /**
- * Read the input size and element type from the compiled model rather than
- * hard-coding them: swap in MoveNet Thunder (256×256) and nothing else changes.
- * The first input's shape is [1, height, width, 3]. Fall back to `fallbackSize`
- * and `int32` when the details are missing, and treat any dtype other than
- * `float32` / `uint8` as `int32`.
+ * TODO (act 2a, stretch) — Read the input size and element type from the
+ * compiled model instead of hard-coding them: swap in MoveNet Thunder
+ * (256×256) and nothing else changes.
+ *
+ * `model.getInputDetails()[0]` has `shape` — [1, height, width, 3] — and
+ * `dtype`. Fall back to `fallbackSize` and `int32` when the details are
+ * missing, and treat any dtype other than `float32` / `uint8` as `int32`.
  */
 export function readInputSpec(model: ModelLike, fallbackSize: number): InputSpec {
-  const details = model.getInputDetails()[0];
-  const size = details?.shape?.[1] ?? fallbackSize;
-  const dtype =
-    details?.dtype === 'float32' || details?.dtype === 'uint8' ? details.dtype : 'int32';
-  return { size, dtype };
+  return { size: fallbackSize, dtype: 'int32' };
 }
 
 /** A zeroed buffer of `length` elements of the given element type. */
@@ -303,24 +289,14 @@ export function allocInput(dtype: InputSpec['dtype'], length: number): TypedArra
 }
 
 /**
- * The warmup check: run one neutral grey frame and accept the backend only if
- * the output is usable — every value finite and not all zeros. (A broken GPU
- * path tends to return NaNs or silence rather than throwing.)
+ * TODO (act 2a, stretch) — The warmup check: run one neutral grey frame (every
+ * value 128, shaped [1, size, size, 3]) through `runModel` and accept the
+ * backend only if the output is usable — every value finite and not all
+ * zeros. A broken GPU path tends to return NaNs or silence rather than throw,
+ * so return false for those, and for a run that throws.
+ *
+ * Until you do this, every backend that compiles is trusted blindly.
  */
 export async function warmup(api: LiteRtApi, model: ModelLike, spec: InputSpec): Promise<boolean> {
-  const pixels = allocInput(spec.dtype, spec.size * spec.size * 3).fill(128);
-  try {
-    const { output } = await runModel(api, model, pixels, [1, spec.size, spec.size, 3]);
-    let anyNonZero = false;
-    for (let i = 0; i < output.length; i++) {
-      if (!Number.isFinite(output[i])) {
-        return false;
-      }
-      anyNonZero ||= output[i] !== 0;
-    }
-    return anyNonZero;
-  } catch (err) {
-    console.warn('[litert] warmup inference failed:', err);
-    return false;
-  }
+  return true;
 }
