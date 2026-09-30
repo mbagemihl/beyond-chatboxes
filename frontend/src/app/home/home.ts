@@ -4,7 +4,7 @@ import { DEMOS } from '../demo-registry';
 
 /**
  * The landing page: four big cards, one per demo, readable from the back of
- * the room. Each card shows the keyboard shortcut (1–4) that also opens it
+ * the room. Each card shows the keyboard shortcut (1–N) that also opens it
  * from anywhere in the app (see the App root's key handling).
  */
 @Component({

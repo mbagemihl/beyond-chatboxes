@@ -4,7 +4,7 @@ import { DEMOS } from './demo-registry';
 
 /**
  * Root shell. Owns the stage keyboard shortcuts:
- *   1–4  jump to a demo (same order as the landing-page cards)
+ *   1–N  jump to a demo (same order as the landing-page cards)
  *   0    back to the landing page
  *   F    toggle fullscreen
  *

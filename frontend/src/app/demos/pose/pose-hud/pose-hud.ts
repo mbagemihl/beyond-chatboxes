@@ -16,10 +16,12 @@ import { PoseBackend } from '../pose-engine.service';
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="hud" role="status" aria-live="polite">
-      <div class="stat">
-        <span class="label">fps</span>
-        <span class="value">{{ fps() | number: '1.0-0' }}</span>
-      </div>
+      @if (fps() !== null) {
+        <div class="stat">
+          <span class="label">fps</span>
+          <span class="value">{{ fps() | number: '1.0-0' }}</span>
+        </div>
+      }
       <div class="stat">
         <span class="label">inference</span>
         <span class="value">{{ inferenceMs() | number: '1.0-1' }}<small>ms</small></span>
@@ -103,7 +105,8 @@ import { PoseBackend } from '../pose-engine.service';
   `,
 })
 export class PoseHud {
-  readonly fps = input.required<number>();
+  /** Live throughput; leave unset (null) for a single-image run. */
+  readonly fps = input<number | null>(null);
   readonly inferenceMs = input.required<number>();
   readonly backend = input.required<PoseBackend | null>();
   readonly modelName = input.required<string>();

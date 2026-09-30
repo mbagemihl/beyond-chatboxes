@@ -55,13 +55,13 @@ async function loadModel(): Promise<void> {
     if (env.allowRemoteModels || env.localModelPath !== '/models/') {
       throw new SetupError(
         'Transformers.js is not configured for offline use, so it would fetch the model ' +
-          'from the Hugging Face Hub. See configureOffline() in embedding-setup.ts (block 2, step 1).',
+          'from the Hugging Face Hub. See configureOffline() in embedding-setup.ts (bonus track "search", step 1).',
       );
     }
     const candidates = embeddingCandidates(await hasUsableWebGPU(navigator));
     if (candidates.length === 0) {
       throw new SetupError(
-        'No backend to try: embeddingCandidates() in embedding-setup.ts returned nothing (block 2, step 2).',
+        'No backend to try: embeddingCandidates() in embedding-setup.ts returned nothing (bonus track "search", step 2).',
       );
     }
     embedder = await loadEmbedder(transformers, MODEL_ID, candidates);

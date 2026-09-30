@@ -2,8 +2,9 @@
 
 Every demo here runs a real model **in the browser**, with nothing leaving the
 machine. This page introduces the pieces that make that possible, what each
-one is for, and the few calls you actually write. Read it before Block 1; the
-presenter tours it at the start of the workshop.
+one is for, and the few calls you actually write. The lab starts from a model
+on the server and moves it to the browser, so the server side comes first.
+The presenter tours this page at the start of the workshop.
 
 ---
 
@@ -33,12 +34,46 @@ Three things are always true in this stack:
 3. **A backend executes it.** The runtime compiles the model for the GPU
    (WebGPU) when it can, and for the CPU (WebAssembly) when it cannot.
 
-| Demo | Task | Runtime | Model | Format, size |
-|---|---|---|---|---|
-| `/pose` | Pose estimation | **LiteRT.js** | MoveNet Lightning | `.tflite`, 4.8 MB (fp16) |
-| `/search` | Semantic search | **Transformers.js** on ONNX Runtime Web | all-MiniLM-L6-v2 | `.onnx`, 23 MB (q8) / 90 MB (fp32) |
-| `/smartform` | Document reading | **Tesseract.js** | Tesseract LSTM | `.traineddata`, 5.6 MB (eng+deu) |
-| `/smartform` (optional) | Field extraction | **Chrome Prompt API** | Gemini Nano | built into Chrome |
+| Where | Task | Runtime | Model | Format, size | In the lab |
+|---|---|---|---|---|---|
+| backend | Pose estimation | **DJL** + ONNX Runtime (JVM) | MoveNet Lightning | `.onnx`, 9.4 MB | Act 1 |
+| `/pose/still`, `/pose` | Pose estimation | **LiteRT.js** | MoveNet Lightning | `.tflite`, 4.8 MB (fp16) | Acts 2a, 2b, 3 |
+| `/search` | Semantic search | **Transformers.js** on ONNX Runtime Web | all-MiniLM-L6-v2 | `.onnx`, 23 MB (q8) / 90 MB (fp32) | bonus |
+| `/smartform` | Document reading | **Tesseract.js** | Tesseract LSTM | `.traineddata`, 5.6 MB (eng+deu) | bonus |
+| `/smartform` (optional) | Field extraction | **Chrome Prompt API** | Gemini Nano | built into Chrome | bonus |
+
+---
+
+## Where we start: DJL on the JVM (Act 1)
+
+The same picture, on a server. **DJL** (Deep Java Library) is the Java API.
+**ONNX Runtime** is the engine underneath, and it executes an `.onnx` export of
+the very model the browser will run:
+
+```kotlin
+val model = Criteria.builder()
+    .setTypes(BufferedImage::class.java, FloatArray::class.java)
+    .optModelPath(path)                 // model file on disk
+    .optTranslator(MoveNetTranslator()) // image → tensor → keypoints
+    .optEngine("OnnxRuntime")           // the runtime
+    .build().loadModel()
+val predictor = model.newPredictor()
+predictor.predict(image)                // one inference
+```
+
+Everything around `predict` is the price of a server: upload, decode, HTTP,
+distance. [docs/backend-tour.md](docs/backend-tour.md) walks through the code.
+Act 2 moves each call to the browser:
+
+| DJL (server) | LiteRT.js (browser) |
+|---|---|
+| ONNX Runtime natives load on first use | `loadLiteRt('/wasm/litert/')` |
+| `optModelPath(path)` | `fetch('/models/pose/…tflite')` |
+| `Criteria…optEngine("OnnxRuntime")…loadModel()` | `loadAndCompile(bytes, { accelerator: 'webgpu' })` |
+| `@PostConstruct` warmup | one warmup `run` on a grey frame |
+| `Translator.processInput`: `NDManager.create(…, UINT8)` | `new Tensor(pixels, [1, 192, 192, 3])` (int32 for this model) |
+| `predictor.predict` + `processOutput` | `model.run(tensor)` + `await output.data()` |
+| `close()` | `tensor.delete()`, `model.delete()` |
 
 ---
 
@@ -61,7 +96,7 @@ before trusting a backend.
 
 ---
 
-## LiteRT.js — Block 1
+## LiteRT.js — Acts 2a, 2b and 3
 
 Google's runtime for `.tflite` models, the successor to TensorFlow Lite for
 the web. Used for pose estimation. The whole lifecycle is five calls:
@@ -91,11 +126,19 @@ Things worth knowing:
   `pose-math.ts`.
 
 In the repo: `frontend/src/app/demos/pose/litert-setup.ts` (the steps above,
-which you write in Block 1) and `pose-engine.service.ts` (which runs them).
+which you write in Act 2a), `pose-engine.service.ts` (which runs them), and
+`live-loop.ts` (drawing and the frame loop, Act 2b).
 
 ---
 
-## Transformers.js + ONNX Runtime Web — Block 2
+## Bonus tracks: more runtimes, same pattern
+
+The next three sections are the bonus tracks (`make bonus-search`, `make
+bonus-ocr`): other kinds of model, the same model → runtime → backend picture.
+
+---
+
+## Transformers.js + ONNX Runtime Web — bonus "search"
 
 Hugging Face's JavaScript port of the Python `transformers` library. It runs
 `.onnx` models with **ONNX Runtime Web** underneath, and brings the
@@ -127,11 +170,11 @@ const { last_hidden_state } = await model(inputs);   // one vector per TOKEN
   of this. We don't use it, so you can see each step.
 
 In the repo: `search/embedding-setup.ts` (the steps above, which you write in
-Block 2), `search/embedding.worker.ts` (which runs them), `search/pooling.ts`.
+the search bonus track), `search/embedding.worker.ts` (which runs them), `search/pooling.ts`.
 
 ---
 
-## Tesseract.js — Block 3
+## Tesseract.js — bonus "ocr"
 
 The classic open-source OCR engine, compiled to WebAssembly. No WebGPU path:
 it is always wasm.
@@ -150,13 +193,14 @@ const { data } = await worker.recognize(canvas, {}, { text: true, blocks: true }
 ```
 
 The flat text is the least useful part: the layout tree tells you **where**
-each word is and **how sure** the model was about it. That is Block 3.
+each word is and **how sure** the model was about it. That is the OCR bonus
+track.
 
 In the repo: `smartform/ocr.service.ts`, `smartform/ocr-layout.ts`.
 
 ---
 
-## Chrome Prompt API — Block 3 stretch
+## Chrome Prompt API — bonus "ocr", stretch
 
 A small LLM (Gemini Nano) built into Chrome, reached through `LanguageModel`.
 It runs fully on-device, but only in Chrome with the model already downloaded
@@ -201,7 +245,9 @@ origin, so the demos work with the network cable pulled out:
 |---|---|---|
 | `/wasm/litert/`, `/wasm/ort/`, `/wasm/tesseract/` | runtime binaries | `npm install` (postinstall copies them out of `node_modules`) |
 | `/models/pose/`, `/models/Xenova/…`, `/models/tesseract/` | model files | `scripts/download-models.sh` |
-| `/fixtures/` | sample video + receipt | the repo / `download-models.sh` |
+| `/fixtures/` | squat clip, still image, receipt | the repo / `download-models.sh` |
+| `models/pose/movenet-singlepose-lightning.onnx` | the backend's model, read from disk | `scripts/download-models.sh` |
+| `backend/dist/backend.jar` | the Act 1 backend (DJL + ONNX Runtime natives inside) | the workshop USB stick / `make backend-jar` |
 
 `make doctor` checks all of them (including truncated downloads) before you
 start.

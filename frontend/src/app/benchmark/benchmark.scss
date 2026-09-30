@@ -309,3 +309,39 @@ $muted: #6b7f95;
   font-size: 0.75rem;
   color: $muted;
 }
+
+/* The results row to paste into the Act 3 table in WORKSHOP.md. */
+.bench__row {
+  margin-top: 1.25rem;
+
+  pre {
+    margin: 0.5rem 0 0;
+    padding: 0.75rem;
+    overflow-x: auto;
+    background: rgba(5, 8, 15, 0.8);
+    border: 1px solid rgba(107, 127, 149, 0.25);
+    border-radius: 0.5rem;
+    font-size: 0.75rem;
+    line-height: 1.5;
+    color: #e5eef5;
+    user-select: all;
+  }
+}
+
+.bench__row-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.8rem;
+  color: #9fb0c2;
+
+  button {
+    padding: 0.25rem 0.75rem;
+    border-radius: 0.4rem;
+    border: 1px solid rgba(34, 211, 238, 0.6);
+    background: rgba(34, 211, 238, 0.12);
+    color: #22d3ee;
+    font: inherit;
+    cursor: pointer;
+  }
+}

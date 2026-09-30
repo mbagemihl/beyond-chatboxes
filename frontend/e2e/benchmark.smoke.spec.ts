@@ -42,6 +42,22 @@ function fakePoseResponse() {
   };
 }
 
+/** Mock the backend so the smoke tests need no running server. */
+async function mockBackend(page: import('@playwright/test').Page): Promise<void> {
+  await page.route('**/api/latency-config', (route: Route) => {
+    if (route.request().method() === 'POST') {
+      const body = route.request().postDataJSON() as { delayMs: number };
+      return route.fulfill({
+        json: { delayMs: body.delayMs, allowedMs: [0, 50, 150] },
+      });
+    }
+    return route.fulfill({ json: { delayMs: 0, allowedMs: [0, 50, 150] } });
+  });
+  await page.route('**/api/infer/pose', (route: Route) =>
+    route.fulfill({ json: fakePoseResponse() }),
+  );
+}
+
 test('/benchmark races local vs cloud and renders both bars', async ({ page }) => {
   const errors: string[] = [];
   page.on('console', (msg: ConsoleMessage) => {
@@ -55,19 +71,7 @@ test('/benchmark races local vs cloud and renders both bars', async ({ page }) =
     }
   });
 
-  // Mock the backend cloud tier so the smoke test needs no running server.
-  await page.route('**/api/latency-config', (route: Route) => {
-    if (route.request().method() === 'POST') {
-      const body = route.request().postDataJSON() as { delayMs: number };
-      return route.fulfill({
-        json: { delayMs: body.delayMs, allowedMs: [0, 50, 150] },
-      });
-    }
-    return route.fulfill({ json: { delayMs: 0, allowedMs: [0, 50, 150] } });
-  });
-  await page.route('**/api/infer/pose', (route: Route) =>
-    route.fulfill({ json: fakePoseResponse() }),
-  );
+  await mockBackend(page);
 
   await page.goto('/benchmark');
   await expect(page.locator('app-benchmark')).toBeVisible();
@@ -94,5 +98,21 @@ test('/benchmark races local vs cloud and renders both bars', async ({ page }) =
   await expect(page.locator('svg.chart .bar--local')).toBeVisible();
   await expect(page.locator('svg.chart .bar--cloud-server')).toBeVisible();
 
+  // The Act 3 results row, ready to copy into the table.
+  await expect(page.locator('.bench__row pre')).toContainText('| +0 ms |');
+
   expect(errors, `Console errors:\n${errors.join('\n')}`).toEqual([]);
+});
+
+test('/benchmark?fixture=1 races on the bundled clip, no camera needed', async ({ page }) => {
+  await mockBackend(page);
+  await page.goto('/benchmark?fixture=1');
+  await expect(page.locator('.fixture-badge')).toBeVisible();
+  const raceBtn = page.getByRole('button', { name: /race|running/i });
+  await expect(raceBtn).toBeEnabled({ timeout: 60_000 });
+  await page.waitForTimeout(1_000);
+  await raceBtn.click();
+  await expect(page.locator('.bench__row pre')).toContainText('| +0 ms |', {
+    timeout: 60_000,
+  });
 });

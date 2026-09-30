@@ -13,7 +13,7 @@ See [`CLAUDE.md`](CLAUDE.md) for the full engineering conventions,
 ```
 beyond-chatboxes/
 ├── frontend/            Angular 22 app — the browser-side ML demos live here
-│   └── proxy.conf.json  dev proxy: forwards /api to the backend on :8080
+│   └── proxy.conf.js    dev proxy: forwards /api to the backend (BACKEND_PORT, default :8080)
 ├── backend/             Spring Boot 4 / Kotlin app
 │                        - serves the built frontend from classpath:/static
 │                        - hosts /api/* (health now; the cloud tier later)
@@ -51,7 +51,7 @@ make dev-frontend    # ng serve on   http://localhost:4200
 
 During development you use the app at **http://localhost:4200**. Requests to
 `/api/*` are transparently proxied to the backend on `:8080`
-(see [`frontend/proxy.conf.json`](frontend/proxy.conf.json)), so there are no
+(see [`frontend/proxy.conf.js`](frontend/proxy.conf.js); `BACKEND_PORT` / `BACKEND_URL` move it), so there are no
 CORS concerns and no hard-coded backend URLs in the frontend.
 
 Quick check that the backend is up:
@@ -102,14 +102,20 @@ origin**, never a CDN at runtime. They are fetched at build time by
 its artifacts. Run `make help` to see all available targets.
 
 The server-side pose "cloud tier" runs the **same MoveNet architecture** the
-browser runs. Rather than ship a separate model, we convert our exact tflite to
-ONNX once with [`scripts/convert-movenet-onnx.sh`](scripts/convert-movenet-onnx.sh)
-(invoked automatically by `download-models.sh`; needs `python3`). It writes
+browser runs: an ONNX conversion of our exact tflite. Maintainers produce it once
+with [`scripts/convert-movenet-onnx.sh`](scripts/convert-movenet-onnx.sh) (needs
+Python 3.9–3.12 and ~300 MB of TensorFlow) and publish it as a release asset;
+`download-models.sh` fetches that file, checksum-pinned, and only falls back to
+converting locally when the download fails. It lands in
 `frontend/public/models/pose/movenet-singlepose-lightning.onnx`, which the
 backend loads via the `app.pose.model-path` property (`APP_POSE_MODEL_PATH`).
-Like all model artifacts, the ONNX file is **not committed** — it is produced at
-build time. Without it, `POST /api/infer/pose` returns a clean `503` and the
-benchmark degrades gracefully (local tier still runs; cloud shows "unavailable").
+Like all model artifacts, the ONNX file is **not committed**. Without it,
+`POST /api/infer/pose` returns a clean `503` and the benchmark degrades
+gracefully (local tier still runs; cloud shows "unavailable").
+
+For the workshop, `make backend-jar` builds a slim jar (the API without the
+bundled frontend) into `backend/dist/backend.jar`, and `make backend` runs it
+with plain `java -jar`: no Gradle on attendee machines.
 
 ## Running the benchmark on stage
 
@@ -117,12 +123,10 @@ The **Local vs Cloud** benchmark (`/benchmark`) races the in-browser model
 (LiteRT.js) against the server "cloud tier" (Spring Boot + DJL / ONNX Runtime)
 on the *same* captured frame, and shows the latency distributions side by side.
 
-**One-time setup** (produces the server model):
+**One-time setup** (fetches the browser and server models):
 
 ```bash
-scripts/download-models.sh          # fetches the tflite + converts it to ONNX
-# or just the conversion, if the tflite is already present:
-scripts/convert-movenet-onnx.sh     # needs python3; writes the .onnx once
+scripts/download-models.sh
 ```
 
 **On stage**, run the two modules (two terminals):

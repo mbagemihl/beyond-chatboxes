@@ -19,7 +19,7 @@ make build                   # ng build → embedded in backend/build/libs/app.j
 java -jar backend/build/libs/app.jar     # JDK 21
 ```
 
-Open **http://localhost:8080** — the landing page links all four demos.
+Open **http://localhost:8080** — the landing page links all the demos.
 
 If :8080 is taken on the machine (VM proxies love it), run with
 `--server.port=9099` and open that port instead.
@@ -32,6 +32,7 @@ If :8080 is taken on the machine (VM proxies love it), run with
 | `2`   | Semantic Search                           |
 | `3`   | Smart Form                                |
 | `4`   | Local vs Cloud benchmark                  |
+| `5`   | Pose on one still image, vs the backend   |
 | `0`   | Landing page                              |
 | `F`   | Toggle fullscreen                         |
 

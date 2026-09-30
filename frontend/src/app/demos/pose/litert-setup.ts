@@ -8,6 +8,23 @@
  * whole lifecycle: `loadLiteRt`, `loadAndCompile`, `new Tensor`, `model.run`,
  * `tensor.delete()`. See STACK.md for how it fits next to the other runtimes.
  *
+ * This is a MIGRATION of the Act 1 backend (backend/src/main/kotlin/…/pose/):
+ * every step below has a DJL counterpart you have already seen running.
+ *
+ *   DJL on the JVM                              LiteRT.js in the browser
+ *   ─────────────────────────────────────────   ─────────────────────────────
+ *   ONNX Runtime natives load on first use      startRuntime   → loadLiteRt
+ *   model file on disk (app.pose.model-path)    fetchModelBytes → fetch
+ *   Criteria…optEngine("OnnxRuntime").build()   compileOnBestAccelerator
+ *                                                  → loadAndCompile + accelerator
+ *   @PostConstruct warmup predict               warmup
+ *   Translator.processInput: NDManager.create   runModel → new Tensor
+ *   predictor.predict                           runModel → model.run + data()
+ *   predictor/model .close()                    tensor.delete(), model.delete()
+ *
+ * The pre/post-processing (letterbox, the [y, x, score] decode) is the same on
+ * both sides and already written: MoveNet.kt there, pose-math.ts here.
+ *
  * Every function takes the LiteRT.js API as a parameter ({@link LiteRtApi})
  * instead of importing it directly. PoseEngine passes the real library
  * ({@link liteRt}); the specs pass a fake, so each step can be tested without a
@@ -96,6 +113,9 @@ function messageOf(err: unknown): string {
  * Start the LiteRT.js WebAssembly runtime, loaded from OUR origin (`wasmPath`,
  * e.g. `/wasm/litert/`) — never a CDN, so the demo works offline.
  *
+ * DJL counterpart: ONNX Runtime extracting and loading its native library
+ * the first time an engine is used. Here the "native library" is WebAssembly.
+ *
  * The runtime is global to the page: if another demo already started it,
  * `getGlobalLiteRtPromise()` returns that load, and we wait for it instead of
  * loading a second copy.
@@ -117,7 +137,9 @@ export async function startRuntime(api: LiteRtApi, wasmPath: string): Promise<vo
 // =============================================================================
 
 /**
- * Download the model as bytes. We fetch it ourselves (rather than handing
+ * Download the model as bytes. DJL counterpart: `optModelPath(path)` reading
+ * the .onnx from disk; in the browser the model is a file on our own server.
+ * We fetch it ourselves (rather than handing
  * LiteRT.js the URL) to give a precise error when the file is missing, and to
  * reuse the same bytes if the first accelerator fails to compile.
  */
@@ -156,7 +178,10 @@ export interface ReadyModel {
 
 /**
  * Compile the model for each accelerator in turn and keep the first one that
- * both compiles and passes `warmup`. A backend that compiles can still fail to
+ * both compiles and passes `warmup`. DJL counterpart: `Criteria.builder()
+ * …optEngine("OnnxRuntime").build().loadModel()` plus the `@PostConstruct`
+ * warmup in PoseInferenceService.kt — except the browser has a choice of
+ * accelerator the server did not (WebGPU or wasm). A backend that compiles can still fail to
  * execute (a WebGPU adapter without a working device is common on VMs), so
  * compiling alone proves nothing.
  *
@@ -200,7 +225,10 @@ export interface RunResult {
 
 /**
  * Wrap `input` in a tensor of `shape`, run the model, and read back the first
- * output. `run` returns positional outputs (an array) for a model's default
+ * output. DJL counterpart: `MoveNetTranslator.processInput` building the
+ * NDArray, `predictor.predict`, and `processOutput` reading it as floats. (The
+ * ONNX model wants uint8 input; this tflite wants int32 — each model's file
+ * says which, see readInputSpec.) `run` returns positional outputs (an array) for a model's default
  * signature, or named ones (a record) — take the first either way.
  *
  * Reading the output (`await tensor.data()`) is async because on WebGPU the
@@ -208,7 +236,8 @@ export interface RunResult {
  * `run`, or the number on the HUD is a lie.
  *
  * Every tensor — the input and ALL outputs — must be deleted afterwards, even
- * when `run` throws. At 30 fps a leak is 30 tensors a second.
+ * when `run` throws. At 30 fps a leak is 30 tensors a second. (DJL frees
+ * NDArrays when their NDManager closes; LiteRT.js has no such scope.)
  */
 export async function runModel(
   api: LiteRtApi,

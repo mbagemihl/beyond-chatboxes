@@ -1,0 +1,74 @@
+<section class="still">
+  <header class="still__header">
+    <h1>Pose — one still image</h1>
+    <p class="still__subtitle">
+      The backend's MoveNet, now running in your browser with LiteRT.js
+    </p>
+  </header>
+
+  <div class="still__stage">
+    <img #img class="still__source" [src]="stillUrl" alt="" />
+    <canvas #canvas class="still__canvas"></canvas>
+
+    <app-pose-hud
+      class="still__hud"
+      [inferenceMs]="inferenceMs()"
+      [backend]="backend()"
+      [modelName]="modelName"
+    />
+
+    @if (overlayMessage(); as msg) {
+      <div class="still__overlay" role="status">
+        <p>{{ msg }}</p>
+      </div>
+    }
+  </div>
+
+  <div class="still__panel">
+    <div class="still__actions">
+      <button type="button" (click)="run()" [disabled]="engineStatus() !== 'ready'">
+        Run again
+      </button>
+      <button type="button" (click)="compare()" [disabled]="comparing()">
+        {{ comparing() ? 'Asking the backend…' : 'Compare with backend' }}
+      </button>
+    </div>
+
+    <dl class="still__results">
+      <div class="row">
+        <dt><span class="swatch swatch--browser"></span>Browser · LiteRT.js · {{ backend() ?? '…' }}</dt>
+        <dd>
+          @if (browserKeypoints()) {
+            {{ inferenceMs() | number: '1.1-1' }} ms
+          } @else {
+            —
+          }
+        </dd>
+      </div>
+      <div class="row">
+        <dt><span class="swatch swatch--server"></span>Backend · DJL · {{ server()?.backend ?? 'onnxruntime' }}</dt>
+        <dd>
+          @if (server(); as s) {
+            {{ s.inferenceMs | number: '1.1-1' }} ms model ·
+            {{ s.roundTripMs | number: '1.1-1' }} ms round trip
+          } @else {
+            —
+          }
+        </dd>
+      </div>
+      @if (difference(); as d) {
+        <div class="row">
+          <dt>Largest difference between the two</dt>
+          <dd>
+            {{ d.maxPx | number: '1.1-1' }} px at {{ d.worst }}
+            ({{ d.compared }} keypoints compared)
+          </dd>
+        </div>
+      }
+    </dl>
+
+    @if (cloudError(); as err) {
+      <p class="still__error" role="alert">{{ err }}</p>
+    }
+  </div>
+</section>

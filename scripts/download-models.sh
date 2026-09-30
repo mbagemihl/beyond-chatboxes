@@ -111,21 +111,28 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# Pose (server "cloud tier") — MoveNet ONNX, converted from the tflite above so
-# the browser (LiteRT.js) and server (DJL/ONNX Runtime) run the SAME model.
-# The conversion needs python; it is only required on a box that serves the
-# backend cloud tier, so a missing/failed conversion is a WARNING, not fatal —
-# the frontend demos still build and run without it.
+# Pose (server) — MoveNet ONNX for the DJL backend of Act 1, converted from the
+# tflite above so the browser (LiteRT.js) and the server (DJL/ONNX Runtime) run
+# the SAME model. Attendees download the converted file, pinned by checksum;
+# only maintainers ever run the conversion (it needs Python + ~300 MB of
+# TensorFlow). If the download fails, the conversion is tried as a fallback.
+# Publish a new conversion with:
+#   gh release upload models-v1 frontend/public/models/pose/movenet-singlepose-lightning.onnx --clobber
+# and update the sha256 below.
 POSE_ONNX="$POSE_DIR/movenet-singlepose-lightning.onnx"
-echo "==> Pose (server): MoveNet ONNX for the DJL cloud tier"
-if [[ -f "$POSE_ONNX" ]]; then
-  echo "  • already present, skipping"
-elif "$SCRIPT_DIR/convert-movenet-onnx.sh"; then
-  : # convert-movenet-onnx.sh prints its own progress
+POSE_ONNX_URL="https://github.com/mbagemihl/beyond-chatboxes/releases/download/models-v1/movenet-singlepose-lightning.onnx"
+POSE_ONNX_SHA="6df9544cadf16fbb033b6d43bd4456d2cf696d76e39f1f7b1e4fc672fc051965"
+echo "==> Pose (server): MoveNet ONNX for the DJL backend"
+if fetch_verify "$POSE_ONNX_URL" "$POSE_ONNX" "$POSE_ONNX_SHA"; then
+  :
 else
-  echo "  ! ONNX conversion skipped/failed. The backend /api/infer/pose endpoint" >&2
-  echo "    will return 503 until it exists. Re-run scripts/convert-movenet-onnx.sh" >&2
-  echo "    (needs python3) to enable the benchmark's cloud tier." >&2
+  echo "  ! Download failed; trying to convert the tflite locally instead." >&2
+  if ! "$SCRIPT_DIR/convert-movenet-onnx.sh"; then
+    echo "  ✗ No server model. The backend (make backend) will answer 503 until" >&2
+    echo "    frontend/public/models/pose/movenet-singlepose-lightning.onnx exists." >&2
+    echo "    Copy it from the workshop USB stick, or re-run this script online." >&2
+    exit 1
+  fi
 fi
 
 # ---------------------------------------------------------------------------

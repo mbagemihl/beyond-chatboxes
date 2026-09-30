@@ -57,4 +57,10 @@ tasks.named<Jar>("jar") {
 
 tasks.named<org.springframework.boot.gradle.tasks.bundling.BootJar>("bootJar") {
 	archiveFileName = "app.jar"
+	// `-Pslim` builds the workshop jar: the API only, without the copied-in
+	// frontend (static/ holds ~160 MB of models and wasm the browser serves via
+	// `ng serve` anyway). Attendees run it with `make backend`, no Gradle needed.
+	if (project.hasProperty("slim")) {
+		exclude("static/**")
+	}
 }
