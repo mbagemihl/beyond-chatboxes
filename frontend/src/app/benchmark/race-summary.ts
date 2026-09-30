@@ -2,6 +2,19 @@
  * race-summary.ts — turns the raw timings of one race into the comparison the
  * page shows, and into a row for the results table you fill in during Act 3.
  *
+ * ┌─────────────────────────────────────────────────────────────────────────┐
+ * │ WORKSHOP ACT 3 — Race your own backend                                  │
+ * │                                                                         │
+ * │ Keep `make backend` running. Implement the TODOs below, then race at    │
+ * │ +0, +50 and +150 ms injected WAN latency and copy each results row      │
+ * │ into the table in WORKSHOP.md.                                          │
+ * │   Check your work:  make verify-3                                       │
+ * │   Stuck?            make solve-3                                        │
+ * │                                                                         │
+ * │ Watch it work:  http://localhost:4200/benchmark?fixture=1               │
+ * │ Until summarizeRace works, a race ends without results.                 │
+ * └─────────────────────────────────────────────────────────────────────────┘
+ *
  * Pure and framework-free (tested in race-summary.spec.ts). The statistics
  * themselves (median, p95) are given, in stats.ts.
  */
@@ -32,27 +45,27 @@ export interface RaceSummary {
 }
 
 /**
- * The part of a backend round trip that is NOT the model: upload, JPEG decode,
- * HTTP, the injected WAN delay, the response. It is the median round trip
- * minus the median model time, clamped at 0 (the two medians come from
- * different distributions, so on a fast LAN the difference can dip below 0).
+ * TODO (act 3) — The part of a backend round trip that is NOT the model:
+ * upload, JPEG decode, HTTP, the injected WAN delay, the response.
+ *
+ *   network share = round-trip median − model-time median, but never below 0
+ *
+ * (The two medians come from different distributions, so on a fast LAN the
+ * difference can dip below 0; clamp it.)
  */
 export function networkShare(roundTripMedianMs: number, serverMedianMs: number): number {
-  return Math.max(0, roundTripMedianMs - serverMedianMs);
+  return 0;
 }
 
-/** Summarize one race. The backend part is null when it produced no timings. */
+/**
+ * TODO (act 3) — Summarize one race with the given `summarize` (median + p95):
+ *   - `local`: the summary of `localMs`;
+ *   - `cloud`: null when `cloudRoundTripMs` is empty (the backend never
+ *     answered), otherwise `total` (round trips), `server` (model times) and
+ *     `networkMedianMs` from your `networkShare`.
+ */
 export function summarizeRace(timings: RaceTimings): RaceSummary {
-  const local = summarize(timings.localMs);
-  if (timings.cloudRoundTripMs.length === 0) {
-    return { local, cloud: null };
-  }
-  const total = summarize(timings.cloudRoundTripMs);
-  const server = summarize(timings.cloudServerMs);
-  return {
-    local,
-    cloud: { total, server, networkMedianMs: networkShare(total.median, server.median) },
-  };
+  throw new Error('Act 3: implement summarizeRace() in race-summary.ts.');
 }
 
 /** Header of the results table in WORKSHOP.md, matching {@link resultsRow}. */
@@ -61,22 +74,16 @@ export const RESULTS_HEADER =
   '|---|---|---|---|---|---|---|---|';
 
 /**
- * One markdown row for the results table: the injected delay, then every
- * number in whole-ish milliseconds (one decimal). The backend columns read
- * "—" when the backend did not answer.
+ * TODO (act 3) — One markdown row for the results table, matching the eight
+ * columns of RESULTS_HEADER:
+ *
+ *   | +150 ms | webgpu | 9.3 ms | 9.8 ms | 181.0 ms | 190.2 ms | 6.0 ms | 175.0 ms |
+ *
+ * i.e. `+<delay> ms`, the local backend, local median and p95, cloud median
+ * and p95, server model median, network share. Every number with one decimal
+ * (`toFixed(1)`) and " ms"; the four backend cells are "—" when `race.cloud`
+ * is null.
  */
 export function resultsRow(delayMs: number, localBackend: string, race: RaceSummary): string {
-  const ms = (value: number) => `${value.toFixed(1)} ms`;
-  const cloud = race.cloud;
-  const cells = [
-    `+${delayMs} ms`,
-    localBackend,
-    ms(race.local.median),
-    ms(race.local.p95),
-    cloud ? ms(cloud.total.median) : '—',
-    cloud ? ms(cloud.total.p95) : '—',
-    cloud ? ms(cloud.server.median) : '—',
-    cloud ? ms(cloud.networkMedianMs) : '—',
-  ];
-  return `| ${cells.join(' | ')} |`;
+  return '';
 }
