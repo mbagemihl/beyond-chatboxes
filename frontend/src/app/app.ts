@@ -45,7 +45,7 @@ export class App {
     const demo = DEMOS[index];
     if (demo) {
       event.preventDefault();
-      void this.router.navigate(['/', demo.path]);
+      void this.router.navigateByUrl('/' + demo.path);
     }
   }
 

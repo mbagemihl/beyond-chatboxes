@@ -6,7 +6,7 @@
 
   <nav class="home__grid" aria-label="Demos">
     @for (demo of demos; track demo.path; let i = $index) {
-      <a class="card" [routerLink]="['/', demo.path]">
+      <a class="card" [routerLink]="'/' + demo.path">
         <span class="card__key" aria-hidden="true">{{ i + 1 }}</span>
         <span class="card__body">
           <span class="card__title">{{ demo.title }}</span>
