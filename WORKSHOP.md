@@ -16,7 +16,7 @@ screen immediately: keypoint × canvas size, a confidence threshold, and
 "round trip − model time".
 
 **The backend is prepared, not written.** It runs from a prebuilt jar (no
-Gradle), and a ten-minute guided tour ([docs/backend-tour.md](docs/backend-tour.md))
+Gradle), and a ten-minute guided tour ([BACKEND-TOUR.md](BACKEND-TOUR.md))
 maps each DJL call to the LiteRT.js call attendees write in Act 2. That keeps
 the Kotlin visible without spending the first hour on a JVM toolchain.
 
@@ -93,7 +93,7 @@ make dev-frontend     # terminal 2: the Angular app on :4200, /api proxied to :8
 
 (If `make doctor` reported :8080 as taken, add `BACKEND_PORT=9099` to both.)
 
-**Presenter-led tour (10 min)** of [docs/backend-tour.md](docs/backend-tour.md):
+**Presenter-led tour (10 min)** of [BACKEND-TOUR.md](BACKEND-TOUR.md):
 - `Criteria` + `optEngine("OnnxRuntime")`;
 - the `@PostConstruct` warmup;
 - the `synchronized` predictor;

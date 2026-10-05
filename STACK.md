@@ -62,7 +62,7 @@ predictor.predict(image)                // one inference
 ```
 
 Everything around `predict` is the price of a server: upload, decode, HTTP,
-distance. [docs/backend-tour.md](docs/backend-tour.md) walks through the code.
+distance. [BACKEND-TOUR.md](BACKEND-TOUR.md) walks through the code.
 Act 2 moves each call to the browser:
 
 | DJL (server) | LiteRT.js (browser) |
@@ -77,7 +77,7 @@ Act 2 moves each call to the browser:
 
 ---
 
-## WebGPU vs WebAssembly — the backend
+## WebGPU vs WebAssembly — GPU first, wasm as the fallback
 
 | | WebGPU | WebAssembly (wasm) |
 |---|---|---|
@@ -86,13 +86,14 @@ Act 2 moves each call to the browser:
 | Speed | fastest for big models | fine for small ones (MoveNet: ~10 ms) |
 | Gotcha | the browser can *have* WebGPU but no working device | slower, but it always works |
 
-Every demo tries WebGPU first and **falls back to wasm**, and the HUD badge
-says which one won. A mixed room is normal. The fallback is a feature, not a
-failure.
+Every demo tries WebGPU first and **falls back to wasm**, and the HUD's
+`backend` badge says which one won. (ML runtimes call this choice the
+*execution backend*, not to be confused with the Spring Boot backend of Act 1.)
+A mixed room is normal. The fallback is a feature, not a failure.
 
 Why "compiles" is not "works": a model can compile for WebGPU and still fail
 (or return NaNs) on the first run. So every demo runs one **warmup** inference
-before trusting a backend.
+before trusting WebGPU (or wasm).
 
 ---
 
