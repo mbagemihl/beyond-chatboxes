@@ -36,7 +36,9 @@ MODE="${1:-}"
 BLOCK="${2:-}"
 
 USAGE="usage: workshop-step.sh {step|solve} <1|2|3|bonus-search|bonus-ocr>"
-[[ "$MODE" == "step" || "$MODE" == "solve" ]] || die "$USAGE"
+# `banner` is internal: `step` runs the CHECKED-OUT checkpoint's own script in
+# this mode, so the files it names always come from the same commit as the tree.
+[[ "$MODE" == "step" || "$MODE" == "solve" || "$MODE" == "banner" ]] || die "$USAGE"
 
 # Per checkpoint: the files its exercise lives in (also the set `solve`
 # restores), the tag it starts from, and the page to watch.
@@ -59,6 +61,40 @@ esac
 
 STAMP="$(date +%Y%m%d-%H%M%S)"
 
+print_banner() {
+  local branch
+  branch="$(git branch --show-current)"
+  printf '\n%s▸ Checkpoint %s ready%s on branch %s%s%s\n' "$BOLD" "$BLOCK" "$OFF" "$CYAN" "$branch" "$OFF"
+  printf '  Files to edit:\n'
+  printf '    %s\n' "${FILES[@]}"
+  printf '  Watch it work:    %shttp://localhost:4200%s%s\n' "$CYAN" "$ROUTE" "$OFF"
+  printf '  Check your work:  %smake verify-%s%s\n' "$CYAN" "$BLOCK" "$OFF"
+  printf '  Stuck?            %smake solve-%s%s\n' "$CYAN" "$BLOCK" "$OFF"
+}
+
+if [[ "$MODE" == "banner" ]]; then
+  print_banner
+  exit 0
+fi
+
+# refresh_tag — the checkpoint tags are re-cut when the workshop changes, and a
+# plain `git fetch` / `git pull` never moves a tag you already have. When the
+# remote is reachable and has a different tag, take it. Offline (the workshop
+# room), nothing happens and the local tag is used.
+refresh_tag() {
+  local remote local_sha
+  remote="$(GIT_SSH_COMMAND="ssh -o ConnectTimeout=5 -o BatchMode=yes" \
+    git -c http.lowSpeedLimit=1000 -c http.lowSpeedTime=5 \
+    ls-remote --tags origin "refs/tags/$TAG" 2>/dev/null | awk '{print $1}')" || return 0
+  [[ -n "$remote" ]] || return 0
+  local_sha="$(git rev-parse -q --verify "refs/tags/$TAG" 2>/dev/null || true)"
+  if [[ "$remote" != "$local_sha" ]]; then
+    if git fetch -q --force origin "refs/tags/$TAG:refs/tags/$TAG" 2>/dev/null; then
+      printf '  %s✓%s Checkpoint %s updated from origin\n' "$GREEN" "$OFF" "$TAG"
+    fi
+  fi
+}
+
 # --- park any uncommitted work on its own branch -----------------------------
 park_uncommitted() {
   if [[ -z "$(git status --porcelain)" ]]; then
@@ -75,8 +111,17 @@ park_uncommitted() {
 
 # --- step --------------------------------------------------------------------
 if [[ "$MODE" == "step" ]]; then
+  refresh_tag
   git rev-parse -q --verify "refs/tags/$TAG" >/dev/null \
-    || die "tag '$TAG' not found. Fetch the checkpoints: git fetch --tags"
+    || die "tag '$TAG' not found. Fetch the checkpoints: git fetch --tags --force"
+
+  # A tag that predates this checkpoint's exercise would check out a tree
+  # without the files above. Refuse BEFORE touching anything.
+  for f in "${FILES[@]}"; do
+    git cat-file -e "$TAG:$f" 2>/dev/null || die "your '$TAG' tag is outdated (it has no $f).
+       The checkpoints were updated. Fetch them, then run this again:
+         git fetch --tags --force"
+  done
 
   park_uncommitted
 
@@ -89,12 +134,12 @@ if [[ "$MODE" == "step" ]]; then
   fi
 
   git checkout -q -b "$BRANCH" "$TAG"
-  printf '\n%s▸ Checkpoint %s ready%s on branch %s%s%s\n' "$BOLD" "$BLOCK" "$OFF" "$CYAN" "$BRANCH" "$OFF"
-  printf '  Files to edit:\n'
-  printf '    %s\n' "${FILES[@]}"
-  printf '  Watch it work:    %shttp://localhost:4200%s%s\n' "$CYAN" "$ROUTE" "$OFF"
-  printf '  Check your work:  %smake verify-%s%s\n' "$CYAN" "$BLOCK" "$OFF"
-  printf '  Stuck?            %smake solve-%s%s\n' "$CYAN" "$BLOCK" "$OFF"
+  # Let the checkpoint describe itself: its own script names its own files.
+  # (Checkpoints older than the banner mode fall back to this script's list.)
+  if grep -q 'MODE" == "banner"' scripts/workshop-step.sh 2>/dev/null; then
+    exec bash scripts/workshop-step.sh banner "$BLOCK"
+  fi
+  print_banner
   exit 0
 fi
 

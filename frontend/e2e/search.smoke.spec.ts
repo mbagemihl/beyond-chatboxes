@@ -27,7 +27,7 @@ function isIgnored(text: string): boolean {
   return IGNORED_ERROR_PATTERNS.some((re) => re.test(text));
 }
 
-test('/search embeds locally and ranks by meaning', async ({ page }) => {
+test('/search embeds locally and ranks by meaning', async ({ page, baseURL }) => {
   const errors: string[] = [];
   page.on('console', (msg: ConsoleMessage) => {
     if (msg.type() === 'error' && !isIgnored(msg.text())) {
@@ -43,9 +43,10 @@ test('/search embeds locally and ranks by meaning', async ({ page }) => {
   // Fail loudly if anything is fetched from outside our own origin (the hard
   // "no CDN at runtime" rule). Same-origin and data/blob URLs are fine.
   const offOrigin: string[] = [];
+  const ownOrigin = new URL(baseURL ?? 'http://localhost:4200').origin;
   await page.route('**/*', (route) => {
     const url = route.request().url();
-    if (!/^(https?:\/\/localhost:4200|data:|blob:)/.test(url)) {
+    if (!url.startsWith(`${ownOrigin}/`) && !/^(data|blob):/.test(url)) {
       offOrigin.push(url);
       return route.abort();
     }

@@ -383,7 +383,10 @@ make solve-1     # show me the answer    (same names as verify)
 ```
 
 - **`make step-N`** checks out the checkpoint's tag on a fresh branch and
-  prints the files to edit and the page to watch.
+  prints the files to edit and the page to watch. Re-cut tags are picked up
+  automatically when GitHub is reachable (a plain `git pull` never moves a
+  tag). Offline, an outdated tag is refused with the fix: `git fetch --tags
+  --force`.
 - **`make verify-N`** runs *only* that checkpoint's specs. This is the oracle:
   the exercise is done when its tests pass, so attendees unblock themselves
   instead of queueing at the front.

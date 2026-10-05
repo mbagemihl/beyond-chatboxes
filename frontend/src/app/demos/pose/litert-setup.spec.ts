@@ -128,6 +128,20 @@ describe('startRuntime', () => {
 });
 
 describe('fetchModelBytes', () => {
+  // These tests hand in their own fetchFn. An implementation that calls the
+  // global fetch() instead would hit Node's real fetch, which fails with a
+  // baffling "Failed to parse URL from /models/m.tflite" — so make that
+  // mistake say what it is.
+  beforeEach(() => {
+    vi.stubGlobal('fetch', () => {
+      throw new Error(
+        'fetchModelBytes called the global fetch(). Use the fetchFn parameter instead, ' +
+          'so the test can hand in its own response.',
+      );
+    });
+  });
+  afterEach(() => vi.unstubAllGlobals());
+
   it('returns the file as bytes', async () => {
     const bytes = await fetchModelBytes('/models/m.tflite', async () => response(200));
     expect(Array.from(bytes)).toEqual([1, 2, 3]);

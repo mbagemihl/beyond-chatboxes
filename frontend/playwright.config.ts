@@ -2,6 +2,14 @@ import { defineConfig, devices } from '@playwright/test';
 import { FIXTURE_VIDEO_PATH } from './e2e/fixture-path';
 
 /**
+ * The dev-server port. Override with E2E_PORT when 4200 is taken, e.g. by
+ * another checkout's `ng serve`: the server is reused when present, so the
+ * tests would otherwise silently run against the wrong app.
+ */
+const PORT = Number(process.env['E2E_PORT'] ?? 4200);
+const BASE_URL = `http://localhost:${PORT}`;
+
+/**
  * Playwright config for the demo smoke tests.
  *
  * The camera is mocked with Chromium's fake device, fed by a generated Y4M clip
@@ -17,7 +25,7 @@ export default defineConfig({
   globalSetup: './e2e/global-setup.ts',
 
   use: {
-    baseURL: 'http://localhost:4200',
+    baseURL: BASE_URL,
     trace: 'on-first-retry',
     permissions: ['camera'],
     launchOptions: {
@@ -42,8 +50,8 @@ export default defineConfig({
   ],
 
   webServer: {
-    command: 'npm start',
-    url: 'http://localhost:4200',
+    command: `npm start -- --port ${PORT}`,
+    url: BASE_URL,
     timeout: 120_000,
     reuseExistingServer: !process.env['CI'],
   },
