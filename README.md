@@ -32,9 +32,15 @@ UI and the API from `http://localhost:8080`.
 | Tool    | Version                | Notes                                                        |
 |---------|------------------------|--------------------------------------------------------------|
 | Node.js | 22 / 24 LTS (or 25)    | This repo was scaffolded on Node 25; Angular 22 emits an `EBADENGINE` warning on odd Node releases — harmless, builds pass. |
-| Java    | **21 or newer**        | The backend is compiled for Java 21 and runs on any later release (tested on 21 and 25). `scripts/find-java.sh` picks one from PATH, `JAVA_HOME`, SDKMAN or macOS `java_home`; no Java at all? `make jre` fetches a portable Temurin 21 runtime into `.tools/jre` (~45 MB). Override with `make <target> JAVA=/path/to/bin/java`. |
+| Git     | any                    | Windows: Git for Windows. |
+| Java    | **21 or newer**        | The backend is compiled for Java 21 and runs on any later release (tested on 21 and 25). `lab` picks one from `JAVA`, `JAVA_HOME`, PATH, SDKMAN, macOS `java_home` or the usual Windows install folders; no Java at all? `lab jre` fetches a portable Temurin 21 runtime into `.tools/jre` (~45 MB). |
 | Gradle  | via wrapper (9.5.1)    | Use `backend/gradlew`; no global Gradle needed.              |
 | Angular | via `npx` (CLI 22)     | No global `@angular/cli` needed.                             |
+
+**Windows, macOS and Linux alike:** every workshop and dev command is the `lab`
+CLI ([`scripts/lab.mjs`](scripts/lab.mjs), Node only, no make or bash). Run it
+as `.\lab <command>` on Windows and `./lab <command>` on macOS/Linux;
+`lab help` lists the commands. The `make` targets are aliases for it.
 
 The frontend uses **standalone bootstrap**, **zoneless** change detection,
 **strict** TypeScript + **strict templates**, SCSS, and the **Vitest** unit-test
@@ -45,13 +51,13 @@ builder — all per `CLAUDE.md`.
 Run the two modules in separate terminals:
 
 ```bash
-make dev-backend     # Spring Boot on http://localhost:8080  (Java 21+)
-make dev-frontend    # ng serve on   http://localhost:4200
+./lab backend        # Spring Boot on http://localhost:8080  (Java 21+; from source without the prebuilt jar)
+./lab frontend       # ng serve on   http://localhost:4200
 ```
 
 During development you use the app at **http://localhost:4200**. Requests to
 `/api/*` are transparently proxied to the backend on `:8080`
-(see [`frontend/proxy.conf.js`](frontend/proxy.conf.js); `BACKEND_PORT` / `BACKEND_URL` move it), so there are no
+(see [`frontend/proxy.conf.js`](frontend/proxy.conf.js); `--port` / `--backend-url` move it), so there are no
 CORS concerns and no hard-coded backend URLs in the frontend.
 
 Quick check that the backend is up:
@@ -112,8 +118,8 @@ Like all model artifacts, the ONNX file is **not committed**. Without it,
 `POST /api/infer/pose` returns a clean `503` and the benchmark degrades
 gracefully (local tier still runs; cloud shows "unavailable").
 
-For the workshop, `make backend-jar` builds a slim jar (the API without the
-bundled frontend) into `backend/dist/backend.jar`, and `make backend` runs it
+For the workshop, `lab backend-jar` builds a slim jar (the API without the
+bundled frontend) into `backend/dist/backend.jar`, and `lab backend` runs it
 with plain `java -jar`: no Gradle on attendee machines.
 
 ## Running the benchmark on stage
@@ -125,14 +131,14 @@ on the *same* captured frame, and shows the latency distributions side by side.
 **One-time setup** (fetches the browser and server models):
 
 ```bash
-scripts/download-models.sh
+./lab download        # Windows: .\lab download
 ```
 
 **On stage**, run the two modules (two terminals):
 
 ```bash
-make dev-backend     # :8080 — logs "Pose predictor ready: engine=OnnxRuntime …"
-make dev-frontend    # :4200 — /api proxied to :8080
+./lab backend        # :8080 — logs "Pose predictor ready: engine=OnnxRuntime …"
+./lab frontend       # :4200 — /api proxied to :8080
 ```
 
 Open **http://localhost:4200/benchmark**, then:

@@ -12,9 +12,9 @@
 /scripts/.venv-onnx/
 /scripts/.convert-*.log
 
-# Attendee attempts copied aside by `make solve-N` (scripts/workshop-step.sh)
+# Attendee attempts copied aside by `lab solve N` (scripts/lab/checkpoints.mjs)
 /.workshop-backups/
-# Portable Java runtime from `make jre` (scripts/fetch-jre.sh).
+# Portable Java runtime from `lab jre` (scripts/lab/java.mjs).
 /.tools/
 
 # OS / editor noise

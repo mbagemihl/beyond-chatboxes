@@ -134,7 +134,7 @@ which you write in Act 2a), `pose-engine.service.ts` (which runs them), and
 
 ## Bonus tracks: more runtimes, same pattern
 
-The next three sections are the bonus tracks (`make bonus-search`, `make
+The next three sections are the bonus tracks (`lab bonus search`, `make
 bonus-ocr`): other kinds of model, the same model → runtime → backend picture.
 
 ---
@@ -248,9 +248,9 @@ origin, so the demos work with the network cable pulled out:
 | `/models/pose/`, `/models/Xenova/…`, `/models/tesseract/` | model files | `scripts/download-models.sh` |
 | `/fixtures/` | squat clip, still image, receipt | the repo / `download-models.sh` |
 | `models/pose/movenet-singlepose-lightning.onnx` | the backend's model, read from disk | `scripts/download-models.sh` |
-| `backend/dist/backend.jar` | the Act 1 backend (DJL + ONNX Runtime natives inside) | the workshop USB stick / `make backend-jar` |
+| `backend/dist/backend.jar` | the Act 1 backend (DJL + ONNX Runtime natives inside) | the workshop USB stick / `lab backend-jar` |
 
-`make doctor` checks all of them (including truncated downloads) before you
+`lab doctor` checks all of them (including truncated downloads) before you
 start.
 
 ---

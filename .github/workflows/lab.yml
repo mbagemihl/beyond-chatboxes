@@ -1,0 +1,87 @@
+# The workshop CLI (`lab`) on every operating system attendees bring. This is
+# the real Windows check: the trainers' machines are Macs.
+name: lab CLI
+
+on:
+  push:
+    paths: ['lab', 'lab.cmd', 'scripts/**', 'Makefile', '.gitattributes', '.github/workflows/lab.yml', 'frontend/package-lock.json']
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  lab:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # the checkpoint tags
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Unit tests
+        run: node --test scripts/lab/lab.test.mjs
+
+      - name: Launchers (PowerShell)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: .\lab help
+
+      - name: Launchers (cmd)
+        if: runner.os == 'Windows'
+        shell: cmd
+        run: .\lab help
+
+      - name: Launcher (sh)
+        if: runner.os != 'Windows'
+        run: ./lab help
+
+      - name: Portable Java (lab jre), then doctor finds it
+        shell: pwsh
+        env:
+          FIND_JAVA_ONLY_TOOLS: '1'
+        run: |
+          node scripts/lab.mjs jre
+          node scripts/lab.mjs jre   # second run: already present, skipping
+          # The doctor is NOT READY here (no models in CI); only its Java line counts.
+          $out = node scripts/lab.mjs doctor | Out-String
+          Write-Output $out
+          if ($out -notmatch 'Java 21 \(portable runtime in \.tools/jre\)') { exit 1 }
+          exit 0   # not the doctor's own (expected) failure
+
+      - name: Frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Re-cut checkpoint 3 on this commit, offline (as after a merge)
+        shell: bash
+        run: |
+          git config user.email ci@example.invalid
+          git config user.name ci
+          base=$(git rev-parse HEAD)
+          git checkout -q -b recut "$base"
+          git cherry-pick step-3-start >/dev/null
+          git tag -f step-3-start >/dev/null
+          git checkout -q "$base"
+          # `solve` restores from origin/main: let that be this commit, as after a merge.
+          git update-ref refs/remotes/origin/main "$base"
+          # No network for the checkpoint refresh: use the tag cut above.
+          git remote set-url origin https://invalid.invalid/beyond-chatboxes.git
+
+      - name: step → verify fails → solve → verify passes
+        shell: pwsh
+        run: |
+          node scripts/lab.mjs step 3
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          node scripts/lab.mjs verify 3
+          if ($LASTEXITCODE -eq 0) { Write-Error 'verify passed on the untouched stub'; exit 1 }
+          node scripts/lab.mjs solve 3
+          node scripts/lab.mjs verify 3
+          if ($LASTEXITCODE -ne 0) { exit 1 }

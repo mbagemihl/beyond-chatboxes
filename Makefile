@@ -1,91 +1,64 @@
 # Beyond the Chatbox — monorepo tasks
 #
-# Java for the backend: any release 21 or newer. scripts/find-java.sh picks it
-# (PATH, JAVA_HOME, the portable .tools/jre from `make jre`, SDKMAN, macOS
-# java_home). Override with JAVA=/path/to/bin/java, or JDK21=/path/to/jdk as
-# before.
-ifdef JDK21
-JAVA ?= $(JDK21)/bin/java
-endif
-ifndef JAVA
-JAVA := $(shell scripts/find-java.sh)
-endif
-# Gradle's JAVA_HOME, derived from that java (…/bin/java → …).
-JAVA_HOME_FOR_GRADLE = $(patsubst %/bin/java,%,$(JAVA))
+# The workshop commands live in the cross-platform `lab` CLI (scripts/lab.mjs:
+# Node only, no make or bash, so it also runs on Windows as `.\lab`). The
+# workshop targets below are aliases for it; `./lab help` lists them all.
+LAB := node scripts/lab.mjs
 # The backend port. VM/container proxies often squat :8080; move it with
-# `make backend BACKEND_PORT=9099` and start the frontend with the same variable.
+# `make backend BACKEND_PORT=9099` (or `./lab backend --port 9099`).
 BACKEND_PORT ?= 8080
-BACKEND_JAR  := backend/dist/backend.jar
+# JAVA_HOME for the Gradle targets: any Java 21 or newer, found the same way
+# `lab backend` finds it. Override with JAVA_HOME_FOR_GRADLE=/path/to/jdk.
+JAVA_HOME_FOR_GRADLE ?= $(shell $(LAB) java-home)
 
 FRONTEND_DIST := frontend/dist/frontend/browser
 STATIC_DIR    := backend/src/main/resources/static
 
-.PHONY: help doctor step-% bonus-% verify-% solve-% jre backend backend-jar measure-backend dev-frontend dev-backend build build-frontend build-backend test test-frontend test-backend clean
+.PHONY: help doctor step-% bonus-% verify-% solve-% jre download backend backend-jar measure-backend dev-frontend dev-backend build build-frontend build-backend test test-frontend test-backend clean
 
 help: ## List available targets
 	@grep -E '^[a-zA-Z_%-]+:.*?## .*$$' $(MAKEFILE_LIST) \
 		| sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-16s\033[0m %s\n", $$1, $$2}'
 
-## --- Workshop ---
-
-# Spec files that grade each checkpoint (see WORKSHOP.md). `verify-N` runs ONLY
-# that checkpoint's tests, so an attendee gets a fast, unambiguous "done yet?"
-# instead of a wall of unrelated results. Acts 2a, 2b and 3 are steps 1-3; the
-# bonus tracks are `bonus-search` and `bonus-ocr`.
-VERIFY_1 := --include=**/litert-setup.spec.ts
-VERIFY_2 := --include=**/live-loop.spec.ts
-VERIFY_3 := --include=**/race-summary.spec.ts
-VERIFY_bonus-search := --include=**/embedding-setup.spec.ts
-VERIFY_bonus-ocr := --include=**/ocr-layout.spec.ts --include=**/prompt-api.spec.ts
+## --- Workshop (aliases for ./lab, see `./lab help`) ---
 
 doctor: ## Check this machine is ready for the workshop (run this first)
-	@scripts/doctor.sh
+	@$(LAB) doctor --port $(BACKEND_PORT)
 
 step-%: ## Start an act: make step-1 (still image), -2 (live camera), -3 (race)
-	@scripts/workshop-step.sh step $*
+	@$(LAB) step $*
 
 bonus-%: ## Start a bonus track: make bonus-search, make bonus-ocr
-	@scripts/workshop-step.sh step bonus-$*
+	@$(LAB) bonus $*
 
 verify-%: ## Grade a checkpoint: make verify-1 (-2, -3, -bonus-search, -bonus-ocr)
-	cd frontend && npx ng test --no-watch $(VERIFY_$*)
+	@$(LAB) verify $*
 
 solve-%: ## Reveal a checkpoint's solution: make solve-1 (-2, -3, -bonus-search, ...)
-	@scripts/workshop-step.sh solve $*
+	@$(LAB) solve $*
 
-## --- Act 1: the model on the JVM ---
+download: ## Fetch and verify every model artifact (setup time)
+	@$(LAB) download
 
 jre: ## Download a portable Java 21 runtime into .tools/jre (only if you have no Java 21+)
-	@scripts/fetch-jre.sh
+	@$(LAB) jre
 
-backend: ## Run the prepared pose backend (prebuilt jar, Java 21+; BACKEND_PORT=8080)
-	@if [ -z "$(JAVA)" ]; then \
-		echo "No Java 21 or newer found. Run: make jre   (portable runtime, ~45 MB)"; \
-		exit 1; \
-	fi
-	@if [ -f $(BACKEND_JAR) ]; then \
-		$(JAVA) --enable-native-access=ALL-UNNAMED -Dai.djl.offline=true \
-			-jar $(BACKEND_JAR) --server.port=$(BACKEND_PORT); \
-	else \
-		echo "No $(BACKEND_JAR) (copy it from the workshop USB stick, or: make backend-jar)."; \
-		echo "Building and running from source with Gradle instead..."; \
-		cd backend && JAVA_HOME=$(JAVA_HOME_FOR_GRADLE) ./gradlew bootRun --args='--server.port=$(BACKEND_PORT)'; \
-	fi
+backend: ## Act 1: run the prepared pose backend (prebuilt jar, Java 21+; BACKEND_PORT=8080)
+	@$(LAB) backend --port $(BACKEND_PORT)
 
-backend-jar: ## Build the slim workshop jar (backend/dist/backend.jar) for the USB stick
-	cd backend && JAVA_HOME=$(JAVA_HOME_FOR_GRADLE) ./gradlew bootJar -Pslim
-	mkdir -p backend/dist && cp backend/build/libs/app.jar $(BACKEND_JAR)
+backend-jar: ## Build the slim workshop jar (backend/dist/backend.jar)
+	@$(LAB) backend-jar
 
 measure-backend: ## Act 1: time 20 pose requests against the running backend
-	@BACKEND_PORT=$(BACKEND_PORT) node scripts/measure-backend.mjs
+	@$(LAB) measure --port $(BACKEND_PORT)
 
-## --- Development (run in two terminals) ---
+dev-frontend: ## Run `ng serve` on :4200 with /api proxied to the backend
+	@$(LAB) frontend --port $(BACKEND_PORT)
+
+## --- Development ---
 
 dev-backend: ## Run the Spring Boot backend from source (Java 21+; BACKEND_PORT=8080)
 	cd backend && JAVA_HOME=$(JAVA_HOME_FOR_GRADLE) ./gradlew bootRun --args='--server.port=$(BACKEND_PORT)'
-
-dev-frontend: ## Run `ng serve` on :4200 with /api proxied to the backend
-	cd frontend && npm install && BACKEND_PORT=$(BACKEND_PORT) npx ng serve
 
 ## --- Build (produces one self-contained backend jar) ---
 

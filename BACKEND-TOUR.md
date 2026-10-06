@@ -1,7 +1,7 @@
 # Act 1: a tour of the pose backend
 
 A ten-minute read of the Spring Boot + Kotlin service you start with
-`make backend`. You don't change it today. It's the map for Act 2: every
+`lab backend`. You don't change it today. It's the map for Act 2: every
 LiteRT.js step you write in the browser has a counterpart here.
 
 All files are under `backend/src/main/kotlin/com/consid/beyondchatboxes/pose/`.
@@ -35,7 +35,7 @@ val criteria = Criteria.builder()
 - **Line 124:** a single `Predictor` guarded by `synchronized`. One model
   instance serves every request, one at a time.
 - **Lines 125–127:** `inferenceMs` times only `predict`. That is the
-  *server model time* `make measure-backend` prints next to the round trip.
+  *server model time* `lab measure` prints next to the round trip.
 
 ## 3. Tensors: `MoveNetTranslator.kt`
 

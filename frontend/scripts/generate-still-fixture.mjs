@@ -4,7 +4,7 @@
 // demonstration video" by FitnessScape, Wikimedia Commons, CC BY 3.0 — see
 // public/fixtures/ATTRIBUTION.md).
 //
-// Both tiers get this exact file: `make measure-backend` POSTs it to the
+// Both tiers get this exact file: `lab measure` POSTs it to the
 // backend, and /pose/still runs it through LiteRT.js in the browser. There is
 // no ffmpeg dependency: headless Chromium (already here for the Playwright
 // smoke tests) seeks the video and encodes the frame.
