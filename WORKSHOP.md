@@ -27,8 +27,14 @@ the start.
 
 ## Before anyone writes code
 
+Every workshop command is the `lab` CLI (Node only: no make, no bash), the same
+on every operating system. Type it as **`.\lab …` on Windows** (PowerShell or
+cmd) and **`./lab …` on macOS and Linux**; this document writes plain `lab`.
+`lab help` lists everything. (On macOS/Linux the old `make doctor`,
+`make step-1`, … still work as aliases.)
+
 ```bash
-make doctor
+lab doctor
 ```
 
 Nobody proceeds until this prints **READY**. It checks:
@@ -36,7 +42,7 @@ Nobody proceeds until this prints **READY**. It checks:
 - every model and wasm artifact, including *truncated* downloads (the classic
   room failure);
 - the fixtures;
-- **Java 21 or newer (installed, or the portable one from `make jre`), the
+- **Java 21 or newer (installed, or the portable one from `lab jre`), the
   prebuilt backend jar and the server ONNX model**;
 - that ports 4200 and the backend port are free.
 
@@ -45,20 +51,21 @@ Each failure comes with the exact command that fixes it.
 **Distribution matters more than anything else in this document.** A cold start
 downloads about **350 MB** per attendee (npm ~212 MB compressed, models ~134
 MB), plus the **169 MB backend jar**, plus a ~45 MB portable Java 21 runtime
-(`make jre`) for anyone without a Java 21 or newer.
+(`lab jre`) for anyone without a Java 21 or newer.
 Thirty people fetching that over conference wifi is how you lose the first hour.
 
 Hand out a USB stick or shared drive with:
 - `frontend/node_modules/` and `frontend/public/` pre-seeded (models, wasm,
   fixtures);
-- `backend/dist/backend.jar`, built with `make backend-jar`;
+- `backend/dist/backend.jar`, built with `lab backend-jar`;
 - a portable Java runtime per platform, for attendees without a Java 21 or
-  newer: `JRE_PLATFORM=<platform> JRE_DIR=<stick>/jre-<platform>
-  scripts/fetch-jre.sh` for `mac-aarch64`, `mac-x64`, `linux-x64` (WSL) and
+  newer: `lab jre --platform <platform> --dir <stick>/jre-<platform>` for
+  `win-x64`, `win-aarch64`, `mac-aarch64`, `mac-x64`, `linux-x64` and
   `linux-aarch64`. Attendees copy the matching folder to `.tools/jre`.
 
-Step zero is then *copy a folder*, not *npm install*. Put "Java 21 or newer
-(any vendor; or run `make jre`) and Node 22 or 24" in the pre-lab email.
+Step zero is then *copy a folder*, not *npm install*. Put "Git, Node 22 or 24,
+and Java 21 or newer (any vendor; or run `lab jre`)" in the pre-lab email.
+Windows attendees need nothing else: no make, no WSL.
 
 Assume nothing about the network during the workshop: every act runs offline.
 
@@ -68,13 +75,13 @@ Assume nothing about the network during the workshop: every act runs offline.
 
 | Time | Act | What happens |
 |---|---|---|
-| 0:00–0:15 | **Setup gate** | Copy the USB folder, `make doctor`, everybody green |
+| 0:00–0:15 | **Setup gate** | Copy the USB folder, `lab doctor`, everybody green |
 | 0:15–0:25 | **Why local + the stack** | Presenter: the finished demos (incl. 2 min of search/OCR: "what else runs on-device"), then [STACK.md](STACK.md) |
-| 0:25–0:55 | **Act 1 — The model on the JVM** | `make backend`, code tour, `make measure-backend`, write the numbers down |
-| 0:55–1:35 | **Act 2a — Into the browser: one still image** | `make step-1`: port DJL → LiteRT.js |
+| 0:25–0:55 | **Act 1 — The model on the JVM** | `lab backend`, code tour, `lab measure`, write the numbers down |
+| 0:55–1:35 | **Act 2a — Into the browser: one still image** | `lab step 1`: port DJL → LiteRT.js |
 | 1:35–1:45 | Break | |
-| 1:45–2:20 | **Act 2b — Live camera, real-time skeleton** | `make step-2`: canvas drawing + frame loop |
-| 2:20–2:50 | **Act 3 — Race your own backend** | `make step-3`: latency breakdown, races at 0 / 50 / 150 ms |
+| 1:45–2:20 | **Act 2b — Live camera, real-time skeleton** | `lab step 2`: canvas drawing + frame loop |
+| 2:20–2:50 | **Act 3 — Race your own backend** | `lab step 3`: latency breakdown, races at 0 / 50 / 150 ms |
 | 2:50–3:00 | Close | On-device, cloud, or nowhere at all |
 
 Three hours is tight. If an act runs long, cut its stretch goal, never Act 3:
@@ -87,11 +94,11 @@ the race is where the argument lands.
 Two terminals, both left running for the rest of the lab:
 
 ```bash
-make backend          # terminal 1: Spring Boot + DJL on :8080
-make dev-frontend     # terminal 2: the Angular app on :4200, /api proxied to :8080
+lab backend      # terminal 1: Spring Boot + DJL on :8080
+lab frontend     # terminal 2: the Angular app on :4200, /api proxied to :8080
 ```
 
-(If `make doctor` reported :8080 as taken, add `BACKEND_PORT=9099` to both.)
+(If `lab doctor` reported :8080 as taken, add `--port 9099` to both.)
 
 **Presenter-led tour (10 min)** of [BACKEND-TOUR.md](BACKEND-TOUR.md):
 - `Criteria` + `optEngine("OnnxRuntime")`;
@@ -105,7 +112,7 @@ End on the mapping table at the bottom of the tour: it is the plan for Act 2.
 **Attendees measure it:**
 
 ```bash
-make measure-backend
+lab measure
 ```
 
 It sends the workshop still (`frontend/public/fixtures/pose-still.jpg`) 20 times
@@ -122,7 +129,7 @@ coordinates, and `inferenceMs`.
 ## Act 2a — Into the browser: one still image (40 min)
 
 ```bash
-make step-1
+lab step 1
 ```
 
 Route: `/pose/still`. Model: the same MoveNet, as a float16 `.tflite`, run by
@@ -174,7 +181,7 @@ output: a backend that compiles is not a backend that works).
 ## Act 2b — Live camera, real-time skeleton (35 min)
 
 ```bash
-make step-2
+lab step 2
 ```
 
 Route: `/pose?fixture=1` (the bundled squat clip; switch to `/pose` for your
@@ -213,7 +220,7 @@ every frame.
 ## Act 3 — Race your own backend (30 min)
 
 ```bash
-make step-3
+lab step 3
 ```
 
 Route: `/benchmark?fixture=1`. One frame from the clip goes 20× through LiteRT.js
@@ -244,7 +251,7 @@ never the slow part, the distance is.
 Grader: `race-summary.spec.ts`.
 
 **Stretch**: race the presenter's backend over the real Wi-Fi. Start the frontend
-with `BACKEND_URL=http://<presenter-ip>:8080 make dev-frontend` and add that row
+with `lab frontend --backend-url http://<presenter-ip>:8080` and add that row
 to the table. (Latency injection is per backend process, so on a shared backend
 the presenter controls the dropdown.)
 
@@ -261,13 +268,13 @@ the presenter controls the dropdown.)
 
 ## Bonus tracks (for the fast, and for after the lab)
 
-Not on the timetable. Same mechanics (`make bonus-…`, `make verify-bonus-…`,
-`make solve-bonus-…`), same "the page names the next step" guidance.
+Not on the timetable. Same mechanics (`lab bonus …`, `lab verify bonus-…`,
+`lab solve bonus-…`), same "the page names the next step" guidance.
 
 ### Bonus: search — Meaning without a server (about 40 min)
 
 ```bash
-make bonus-search
+lab bonus search
 ```
 
 Route: `/search`. Model: all-MiniLM-L6-v2 (ONNX), Transformers.js, in a Worker.
@@ -315,7 +322,7 @@ asserts a backend.
 ### Bonus: OCR — Reading a document on-device (about 40 min)
 
 ```bash
-make bonus-ocr
+lab bonus ocr
 ```
 
 Route: `/smartform?fixture=1`. Engine: Tesseract.js (wasm) in a Worker, plus
@@ -375,22 +382,22 @@ input and gets validated like any other.
 Five commands are all an attendee needs:
 
 ```bash
-make doctor      # am I set up?          (run once, before anything)
-make backend     # Act 1 onwards         (keep it running)
-make step-1      # start an act          (also -2, -3; bonus: make bonus-search, bonus-ocr)
-make verify-1    # am I done?            (also -2, -3, -bonus-search, -bonus-ocr)
-make solve-1     # show me the answer    (same names as verify)
+lab doctor      # am I set up?          (run once, before anything)
+lab backend     # Act 1 onwards         (keep it running)
+lab step 1      # start an act          (also -2, -3; bonus: lab bonus search, bonus-ocr)
+lab verify 1    # am I done?            (also -2, -3, -bonus-search, -bonus-ocr)
+lab solve 1     # show me the answer    (same names as verify)
 ```
 
-- **`make step-N`** checks out the checkpoint's tag on a fresh branch and
+- **`lab step N`** checks out the checkpoint's tag on a fresh branch and
   prints the files to edit and the page to watch. Re-cut tags are picked up
   automatically when GitHub is reachable (a plain `git pull` never moves a
   tag). Offline, an outdated tag is refused with the fix: `git fetch --tags
   --force`.
-- **`make verify-N`** runs *only* that checkpoint's specs. This is the oracle:
+- **`lab verify N`** runs *only* that checkpoint's specs. This is the oracle:
   the exercise is done when its tests pass, so attendees unblock themselves
   instead of queueing at the front.
-- **`make solve-N`** restores the reference implementation from `origin/main`.
+- **`lab solve N`** restores the reference implementation from `origin/main`.
 
 **Nothing can lose an attendee's work**, which matters more than elegance when
 thirty people are switching checkpoints at once:
@@ -442,8 +449,8 @@ The server ONNX model is published once as a release asset (see the comment in
 ```bash
 git checkout <tag>
 npx tsc -p frontend/tsconfig.app.json --noEmit   # must be clean: stubs type-check
-make verify-N                                    # must FAIL: the exercise is real
-make solve-N && make verify-N                    # must PASS: the answer is right
+lab verify N                                    # must FAIL: the exercise is real
+lab solve N && lab verify N                    # must PASS: the answer is right
 ```
 
 ---
@@ -458,14 +465,17 @@ make solve-N && make verify-N                    # must PASS: the answer is righ
   laptops. The wasm fallback is a feature; say so early or you will answer the
   same question fifteen times. The first load on a laptop whose WebGPU fails its
   warmup takes ~10 s before wasm takes over.
-- **Don't debug individual laptops.** Point at `make doctor`. If it says READY
+- **Don't debug individual laptops.** Point at `lab doctor`. If it says READY
   and the act still fails, that is a real bug worth everyone's attention.
-- **Port conflicts are common.** VM and container proxies love `:8080`. `make
-  doctor` spots them and prints the `BACKEND_PORT=9099` fix, which must be given
-  to `make backend`, `make dev-frontend` and `make measure-backend` alike.
-- **No Java? `make jre`.** Any Java 21 or newer works; anyone with none gets a
-  portable one with `make jre` (or from the USB stick). If even that fails,
+- **Port conflicts are common.** VM and container proxies love `:8080`. `lab
+  doctor` spots them and prints the `--port 9099` fix, which must be given to
+  `lab backend`, `lab frontend` and `lab measure` alike.
+- **No Java? `lab jre`.** Any Java 21 or newer works; anyone with none gets a
+  portable one with `lab jre` (or from the USB stick). If even that fails,
   they can still do Acts 2 and 3 against the presenter's backend
-  (`BACKEND_URL=…`, see the Act 3 stretch).
+  (`lab frontend --backend-url …`, see the Act 3 stretch).
+- **Windows laptops** run everything with `.\lab …` in PowerShell or cmd. Git
+  for Windows is the only extra install. If PowerShell refuses `.\lab`, use
+  `node scripts\lab.mjs …`; it is the same program.
 - **Pin Node.** Tell attendees "Node 22 or 24" before they discover the
   EBADENGINE warning independently.

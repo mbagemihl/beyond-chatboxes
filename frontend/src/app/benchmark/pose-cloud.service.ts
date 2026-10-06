@@ -70,7 +70,7 @@ export class PoseCloudService {
       const detail =
         typeof body === 'string' ? body : (body?.message ?? err.message);
       if (err.status === 0) {
-        return 'Cannot reach the backend. Is it running? Start it with: make backend';
+        return 'Cannot reach the backend. Is it running? Start it with: lab backend';
       }
       return `Server ${err.status}: ${detail}`;
     }

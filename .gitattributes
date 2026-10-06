@@ -1,0 +1,8 @@
+# Line endings for the files a shell runs. Git for Windows converts text files
+# to CRLF on checkout by default, which breaks a `#!/bin/sh` script, and a
+# .cmd/.bat file wants CRLF. Pin them, whatever core.autocrlf says.
+lab              text eol=lf
+*.sh             text eol=lf
+backend/gradlew  text eol=lf
+*.cmd            text eol=crlf
+*.bat            text eol=crlf
