@@ -62,9 +62,7 @@ export class CameraService {
   ): Promise<void> {
     // Guard: getUserMedia is only present on secure origins (https / localhost).
     if (!navigator.mediaDevices?.getUserMedia) {
-      this.errorSignal.set(
-        'Camera API unavailable. Use https or localhost (a secure origin).',
-      );
+      this.errorSignal.set('Camera API unavailable. Use https or localhost (a secure origin).');
       this.statusSignal.set('unsupported');
       return;
     }
@@ -120,8 +118,7 @@ export class CameraService {
 
     if (outcome === 'failed') {
       this.errorSignal.set(
-        `Fixture video missing or unplayable (${url}). ` +
-          'Run scripts/download-models.sh to fetch it.',
+        `Fixture video missing or unplayable (${url}). Run lab download to fetch it.`,
       );
       this.statusSignal.set('error');
       return;
@@ -177,9 +174,7 @@ export class CameraService {
     switch (name) {
       case 'NotAllowedError':
       case 'SecurityError':
-        this.errorSignal.set(
-          'Camera permission denied. Allow camera access and reload.',
-        );
+        this.errorSignal.set('Camera permission denied. Allow camera access and reload.');
         this.statusSignal.set('denied');
         break;
       case 'NotFoundError':
@@ -192,9 +187,7 @@ export class CameraService {
         this.statusSignal.set('error');
         break;
       default:
-        this.errorSignal.set(
-          err instanceof Error ? err.message : 'Failed to start the camera.',
-        );
+        this.errorSignal.set(err instanceof Error ? err.message : 'Failed to start the camera.');
         this.statusSignal.set('error');
     }
   }

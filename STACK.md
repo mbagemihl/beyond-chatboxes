@@ -128,7 +128,7 @@ Things worth knowing:
 
 In the repo: `frontend/src/app/demos/pose/litert-setup.ts` (the steps above,
 which you write in Act 2a), `pose-engine.service.ts` (which runs them), and
-`live-loop.ts` (drawing and the frame loop, Act 2b).
+`live-loop.ts` (the frame loop, Act 2b; the drawing itself is in `skeleton.ts`).
 
 ---
 

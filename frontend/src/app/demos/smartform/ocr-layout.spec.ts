@@ -7,10 +7,14 @@
 import fixture from './ocr-layout.fixture.json';
 import {
   OcrWord,
+  amountBeside,
   calibrate,
+  capFor,
   extractFieldsFromOcr,
   findLabeledAmount,
   sameRow,
+  verticalOverlap,
+  weakestConfidence,
   wordsRightOf,
 } from './ocr-layout';
 
@@ -28,7 +32,23 @@ function word(
 
 const realWords: readonly OcrWord[] = fixture.words;
 
-describe('sameRow', () => {
+describe('Step 1 · verticalOverlap', () => {
+  it('is the shared height of two boxes', () => {
+    // 100–120 and 110–130 share 110–120.
+    expect(verticalOverlap(word('a', 0, 100).bbox, word('b', 300, 110).bbox)).toBe(10);
+  });
+
+  it('is the smaller box when one contains the other', () => {
+    const tall = word('TOTAL', 0, 0, 95, 60, 40).bbox;
+    expect(verticalOverlap(tall, word('11,00', 300, 10, 95, 60, 15).bbox)).toBe(15);
+  });
+
+  it('is 0 for boxes on different rows', () => {
+    expect(verticalOverlap(word('a', 0, 100).bbox, word('b', 0, 130).bbox)).toBe(0);
+  });
+});
+
+describe('Step 2 · sameRow', () => {
   it('is true for boxes on the same line', () => {
     expect(sameRow(word('a', 0, 100).bbox, word('b', 300, 102).bbox)).toBe(true);
   });
@@ -54,7 +74,7 @@ describe('sameRow', () => {
   });
 });
 
-describe('wordsRightOf', () => {
+describe('Step 3 · wordsRightOf', () => {
   const label = word('Total', 0, 100);
   const far = word('EUR', 400, 101);
   const near = word('11,00', 200, 99);
@@ -70,7 +90,23 @@ describe('wordsRightOf', () => {
   });
 });
 
-describe('findLabeledAmount', () => {
+describe('Step 4 · amountBeside', () => {
+  it('reads the amount to the right of the label, with its words', () => {
+    const label = word('Total', 0, 300);
+    const currency = word('EUR', 300, 300);
+    const amount = word('13,50', 400, 300);
+    const found = amountBeside([amount, label, currency], label);
+    expect(found?.value).toBe(13.5);
+    expect(found?.words).toEqual([currency, amount]);
+  });
+
+  it('is undefined when there is no amount beside the label', () => {
+    const label = word('Betrag', 400, 0);
+    expect(amountBeside([label, word('Menge', 600, 0)], label)).toBeUndefined();
+  });
+});
+
+describe('All layout steps together (given findLabeledAmount)', () => {
   it('pairs a label with an amount far across the row (split columns)', () => {
     const value = word('42,50', 600, 300);
     const found = findLabeledAmount([word('Total', 0, 300), value]);
@@ -114,7 +150,27 @@ describe('findLabeledAmount', () => {
   });
 });
 
-describe('calibrate', () => {
+describe('Step 5 · weakestConfidence', () => {
+  it('is the lowest word confidence', () => {
+    expect(weakestConfidence([word('a', 0, 0, 96), word('b', 0, 0, 70)])).toBe(70);
+  });
+
+  it('is undefined without words', () => {
+    expect(weakestConfidence([])).toBeUndefined();
+  });
+});
+
+describe('Step 6 · capFor', () => {
+  it('is low below 60, medium below 85, high from 85', () => {
+    expect(capFor(40)).toBe('low');
+    expect(capFor(59.9)).toBe('low');
+    expect(capFor(60)).toBe('medium');
+    expect(capFor(84)).toBe('medium');
+    expect(capFor(85)).toBe('high');
+  });
+});
+
+describe('All confidence steps together (given calibrate)', () => {
   const sure = word('x', 0, 0, 96);
   const unsure = word('x', 0, 0, 70);
   const weak = word('x', 0, 0, 40);

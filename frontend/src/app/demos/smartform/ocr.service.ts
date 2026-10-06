@@ -112,7 +112,7 @@ export class OcrService {
         this.fail(
           'Failed to load the OCR engine. Check that /wasm/tesseract/ and ' +
             '/models/tesseract/ are present (run npm install and ' +
-            `scripts/download-models.sh). ${this.messageOf(err)}`,
+            `lab download). ${this.messageOf(err)}`,
         );
         this.initPromise = null;
         throw err;

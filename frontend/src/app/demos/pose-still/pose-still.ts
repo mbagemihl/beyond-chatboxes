@@ -11,7 +11,7 @@ import {
 } from '@angular/core';
 import { DecimalPipe } from '@angular/common';
 import { PoseCloudService } from '../../benchmark/pose-cloud.service';
-import { drawSkeleton } from '../pose/live-loop';
+import { drawSkeleton } from '../pose/skeleton';
 import { PoseEngine } from '../pose/pose-engine.service';
 import { FixtureCredit } from '../pose/fixture-credit';
 import { PoseHud } from '../pose/pose-hud/pose-hud';

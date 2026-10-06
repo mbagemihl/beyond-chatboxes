@@ -14,14 +14,8 @@ import { ActivatedRoute } from '@angular/router';
 import { CameraService } from './camera.service';
 import { PoseEngine, PoseResult } from './pose-engine.service';
 import { BodyAngles, computeBodyAngles } from './pose-math';
-import {
-  FrameLoop,
-  KP_THRESHOLD,
-  StatsThrottle,
-  createFrameLoop,
-  createStatsThrottle,
-  drawSkeleton,
-} from './live-loop';
+import { FrameLoop, StatsThrottle, createFrameLoop, createStatsThrottle } from './live-loop';
+import { KP_THRESHOLD, drawSkeleton } from './skeleton';
 import { PoseHud } from './pose-hud/pose-hud';
 import { PoseAnglePanel } from './pose-angle-panel/pose-angle-panel';
 import { FixtureCredit } from './fixture-credit';
@@ -89,7 +83,7 @@ export class Pose {
   });
 
   // --- Per-frame state (plain fields — never in signals) --------------------
-  private loop: FrameLoop | null = null;
+  private loop: FrameLoop<PoseResult> | null = null;
   private stats: StatsThrottle | null = null;
   private lastAngles: BodyAngles | null = null;
 

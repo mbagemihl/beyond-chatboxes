@@ -11,13 +11,13 @@
  * failure (unavailable, download pending, bad output) degrades silently to the
  * heuristic result.
  *
- * Working with a language model here means three jobs, each a pure function
- * below: WRITE the prompt (including what the OCR model was unsure about),
- * VALIDATE the reply (a model's JSON is untrusted input, checked with zod), and
- * DECIDE how far to trust it (the merge policy).
+ * Working with a language model here means three jobs, each split into small
+ * pure functions below: WRITE the prompt (including what the OCR model was
+ * unsure about), VALIDATE the reply (a model's JSON is untrusted input, checked
+ * with zod), and DECIDE how far to trust it (the merge policy).
  */
 import { z } from 'zod';
-import { Confidence, ExtractedFields, FieldKey, extractDate, isValidIban } from './extract-fields';
+import { Extracted, ExtractedFields, FieldKey, extractDate, isValidIban } from './extract-fields';
 import { LOW_BELOW, type OcrWord } from './ocr-layout';
 
 // --- Minimal typings for the experimental Prompt API ------------------------
@@ -97,18 +97,36 @@ const SYSTEM_PROMPT =
 const MAX_UNSURE_WORDS = 20;
 
 /**
- * The user turn sent to the model: the OCR text between explicit delimiters
- * (it is untrusted input — a receipt can say "ignore previous instructions"),
- * followed by the words the OCR model was unsure about, so the language model
- * knows which characters to doubt ("0" vs "O", "1" vs "l"). The uncertainty
- * section is omitted when every word was read confidently.
+ * Stretch 1 — Fence the OCR text off as DATA. A receipt can literally say
+ * "ignore previous instructions"; delimiters make the boundary explicit. The
+ * format (text trimmed):
+ *
+ *   Receipt OCR text:\n<<<\n{text}\n>>>
  */
-export function buildPromptInput(text: string, words: readonly OcrWord[]): string {
-  const input = `Receipt OCR text:\n<<<\n${text.trim()}\n>>>`;
-  const unsure = words
+export function fenceAsData(text: string): string {
+  return `Receipt OCR text:\n<<<\n${text.trim()}\n>>>`;
+}
+
+/**
+ * Stretch 2 — The words the OCR model doubted (confidence below LOW_BELOW), so
+ * the language model knows which characters to question ("lx" is probably
+ * "1x"). Each as `"lx" (51%)` with the confidence rounded; blank words
+ * skipped; at most MAX_UNSURE_WORDS, so a bad scan cannot flood the prompt.
+ */
+export function unsureWords(words: readonly OcrWord[]): string[] {
+  return words
     .filter((w) => w.confidence < LOW_BELOW && w.text.trim().length > 0)
     .slice(0, MAX_UNSURE_WORDS)
     .map((w) => `"${w.text}" (${Math.round(w.confidence)}%)`);
+}
+
+/**
+ * The user turn sent to the model: the fenced OCR text (stretch 1), followed by
+ * the doubted words (stretch 2) when there are any.
+ */
+export function buildPromptInput(text: string, words: readonly OcrWord[]): string {
+  const input = fenceAsData(text);
+  const unsure = unsureWords(words);
   if (unsure.length === 0) {
     return input;
   }
@@ -148,32 +166,43 @@ export async function mapFieldsWithPromptApi(
 }
 
 /**
- * Validate the model's reply. Takes the first `{…}` span (models like to wrap
- * JSON in prose or code fences when unconstrained), parses it, and checks it
- * against {@link PromptReplySchema} — keys may be missing, but a key that is
- * present must have the right type, or the WHOLE reply is rejected: a model
- * that returned `amount: "about twelve"` is not trusted for the other fields
- * either. Unknown keys are ignored, nulls and blank strings dropped, and the
- * amount is returned as a string like every other field.
+ * Stretch 3 — The JSON object inside a reply. Unconstrained models like to
+ * wrap JSON in prose or code fences, so take the span from the first `{` to
+ * the last `}` and JSON.parse it. No such span, or it does not parse:
+ * undefined.
  */
-export function parsePromptJson(raw: string): PromptFields {
+export function jsonObjectIn(raw: string): unknown {
   const start = raw.indexOf('{');
   const end = raw.lastIndexOf('}');
   if (start === -1 || end <= start) {
-    return {};
+    return undefined;
   }
-  let json: unknown;
   try {
-    json = JSON.parse(raw.slice(start, end + 1));
+    return JSON.parse(raw.slice(start, end + 1));
   } catch {
-    return {};
+    return undefined;
   }
+}
+
+/** A reply as the schema allows it: any key may be missing. */
+export type PromptReply = Partial<z.infer<typeof PromptReplySchema>>;
+
+/**
+ * Stretch 4 — Validate a parsed reply with zod. A language model's JSON is
+ * untrusted input, exactly like a form post. Keys may be missing (the schema's
+ * `.partial()`), but a key that IS present must have the right type —
+ * otherwise reject the WHOLE reply (null): a model that returned
+ * `amount: "about twelve"` is not trusted for the other fields either.
+ */
+export function validateReply(json: unknown): PromptReply | null {
   const reply = PromptReplySchema.partial().safeParse(json);
-  if (!reply.success) {
-    return {};
-  }
+  return reply.success ? reply.data : null;
+}
+
+/** A validated reply as strings: nulls and blank strings dropped, values trimmed. */
+export function toPromptFields(reply: PromptReply): PromptFields {
   const out: PromptFields = {};
-  for (const [key, value] of Object.entries(reply.data) as [FieldKey, string | number | null][]) {
+  for (const [key, value] of Object.entries(reply) as [FieldKey, string | number | null][]) {
     const text = value === null ? '' : String(value).trim();
     if (text.length > 0) {
       out[key] = text;
@@ -183,58 +212,74 @@ export function parsePromptJson(raw: string): PromptFields {
 }
 
 /**
- * Merge model output into the heuristic result — pure, so it is unit-testable
- * without the browser API. The contract enforces "proactive, never destructive":
- *
- *   - a `high`-confidence heuristic value is NEVER overridden by the model;
- *   - the model only fills fields the heuristic left empty (or only guessed at
- *     with `low`/`medium` confidence, e.g. vendor);
- *   - model-supplied values are re-validated with the same pure checks (IBAN
- *     checksum, date/amount normalization) so a hallucination cannot slip in.
- *
- * Model-derived values are tagged `medium` — trustworthy enough to propose,
- * honest that a language model produced them.
+ * The model's reply, validated (stretches 3 and 4). `{}` when there is no
+ * valid reply: unknown keys never appear, zod strips them.
+ */
+export function parsePromptJson(raw: string): PromptFields {
+  const reply = validateReply(jsonObjectIn(raw));
+  return reply ? toPromptFields(reply) : {};
+}
+
+/**
+ * Stretch 5 — May the model fill or replace this field? Only when the
+ * heuristic did not already find it with `high` confidence: a `high` value is
+ * NEVER overridden.
+ */
+export function canOverride(field: Extracted<unknown> | undefined): boolean {
+  return field?.confidence !== 'high';
+}
+
+/**
+ * Stretch 6 — An IBAN from the model, only if it is a real one: spaces
+ * stripped, uppercased, and passing the given `isValidIban` checksum.
+ * Otherwise undefined, so a hallucinated IBAN cannot slip in.
+ */
+export function cleanIban(raw: string): string | undefined {
+  const compact = raw.replace(/\s+/g, '').toUpperCase();
+  return isValidIban(compact) ? compact : undefined;
+}
+
+/** A positive amount; "12,50" is accepted as well as "12.50". */
+function cleanAmount(raw: string): number | undefined {
+  const n = Number(raw.replace(',', '.'));
+  return Number.isFinite(n) && n > 0 ? n : undefined;
+}
+
+/** An ISO 4217 code: three letters, uppercase. */
+function cleanCurrency(raw: string): string | undefined {
+  const code = raw.toUpperCase();
+  return /^[A-Z]{3}$/.test(code) ? code : undefined;
+}
+
+/** Something shaped like local@domain.tld, lowercase. */
+function cleanEmail(raw: string): string | undefined {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(raw) ? raw.toLowerCase() : undefined;
+}
+
+/**
+ * Merge model output into the heuristic result: the trust policy, "proactive,
+ * never destructive". The model may fill or replace a field only where
+ * stretch 5 allows it, and only with a value that passes the same checks the
+ * heuristics use (stretch 6 for the IBAN). Every model-supplied value is
+ * tagged `medium`: good enough to propose, honest that a language model
+ * produced it. The vendor is the heuristic's weakest field, and where the
+ * model helps most: any non-empty name is accepted.
  */
 export function mergeFields(heuristic: ExtractedFields, ai: PromptFields): ExtractedFields {
-  const merged: {
-    -readonly [K in keyof ExtractedFields]: ExtractedFields[K];
-  } = { ...heuristic };
-  const AI: Confidence = 'medium';
-
-  const canOverride = (key: FieldKey): boolean => heuristic[key]?.confidence !== 'high';
-
-  if (ai.date && canOverride('date')) {
-    const normalized = extractDate(ai.date);
-    if (normalized) {
-      merged.date = { value: normalized.value, confidence: AI };
-    }
-  }
-  if (ai.amount && canOverride('amount')) {
-    const n = Number(ai.amount.replace(',', '.'));
-    if (Number.isFinite(n) && n > 0) {
-      merged.amount = { value: n, confidence: AI };
-    }
-  }
-  if (ai.currency && canOverride('currency')) {
-    const code = ai.currency.toUpperCase();
-    if (/^[A-Z]{3}$/.test(code)) {
-      merged.currency = { value: code, confidence: AI };
-    }
-  }
-  if (ai.iban && canOverride('iban')) {
-    const compact = ai.iban.replace(/\s+/g, '').toUpperCase();
-    if (isValidIban(compact)) {
-      merged.iban = { value: compact, confidence: AI };
-    }
-  }
-  if (ai.email && canOverride('email') && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(ai.email)) {
-    merged.email = { value: ai.email.toLowerCase(), confidence: AI };
-  }
-  // Vendor is the heuristic's weakest field, so the model is allowed to replace
-  // anything below `high` here — this is where it helps most.
-  if (ai.vendor && canOverride('vendor')) {
-    merged.vendor = { value: ai.vendor, confidence: AI };
-  }
-
-  return merged;
+  const propose = <T>(field: Extracted<T> | undefined, value: T | undefined) =>
+    value !== undefined && canOverride(field) ? { value, confidence: 'medium' as const } : field;
+  const clean = <T>(raw: string | undefined, check: (raw: string) => T | undefined) =>
+    raw ? check(raw) : undefined;
+  return {
+    ...heuristic,
+    date: propose(
+      heuristic.date,
+      clean(ai.date, (d) => extractDate(d)?.value),
+    ),
+    amount: propose(heuristic.amount, clean(ai.amount, cleanAmount)),
+    currency: propose(heuristic.currency, clean(ai.currency, cleanCurrency)),
+    iban: propose(heuristic.iban, clean(ai.iban, cleanIban)),
+    email: propose(heuristic.email, clean(ai.email, cleanEmail)),
+    vendor: propose(heuristic.vendor, ai.vendor || undefined),
+  };
 }

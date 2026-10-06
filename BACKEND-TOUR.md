@@ -64,13 +64,14 @@ maths on both tiers is exactly why their answers match in Act 2a.
 
 | Here (DJL) | Browser (LiteRT.js, `litert-setup.ts`) |
 |---|---|
-| ONNX Runtime natives load on first use | `startRuntime`: `loadLiteRt('/wasm/litert/')` |
-| `optModelPath` reads the file | `fetchModelBytes`: `fetch('/models/pose/…tflite')` |
-| `Criteria…optEngine(...)…loadModel()` | `compileOnBestAccelerator`: `loadAndCompile(bytes, { accelerator })` |
-| `@PostConstruct` warmup | `warmup` |
-| `processInput`: `NDManager.create(…)` | `runModel`: `new Tensor(pixels, [1, 192, 192, 3])` |
-| `predictor.predict`, `processOutput` | `runModel`: `model.run(tensor)`, `await output.data()` |
-| `close()` on predictor and model | `tensor.delete()`, `model.delete()` |
+| ONNX Runtime natives load on first use | step 1, `loadRuntime`: `loadLiteRt('/wasm/litert/')` |
+| `optModelPath` reads the file | step 2, `modelBytesFrom`: the bytes of `fetch('/models/pose/…tflite')` |
+| `Criteria…optEngine(...)…loadModel()` | step 4, `tryCompile`: `loadAndCompile(bytes, { accelerator })` |
+| `@PostConstruct` warmup | step 5, `keepIfWarm`: run the warmup, free a model that fails it |
+| `processInput`: `NDManager.create(…)` | given in `runModel`: `new Tensor(pixels, [1, 192, 192, 3])` |
+| `predictor.predict` | step 6, `runTensor`: `model.run(tensor)` |
+| `processOutput` | step 7, `readFirstOutput`: `await output.data()` |
+| `close()` on predictor and model | step 8, `deleteAll`: `tensor.delete()` (and `model.delete()`) |
 
 The browser has one choice the server doesn't: **which accelerator**
 (WebGPU on the GPU, or wasm on the CPU). It also has one duty the JVM hides:

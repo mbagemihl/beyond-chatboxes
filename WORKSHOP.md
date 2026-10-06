@@ -80,7 +80,7 @@ Assume nothing about the network during the workshop: every act runs offline.
 | 0:25–0:55 | **Act 1 — The model on the JVM** | `lab backend`, code tour, `lab measure`, write the numbers down |
 | 0:55–1:35 | **Act 2a — Into the browser: one still image** | `lab step 1`: port DJL → LiteRT.js |
 | 1:35–1:45 | Break | |
-| 1:45–2:20 | **Act 2b — Live camera, real-time skeleton** | `lab step 2`: canvas drawing + frame loop |
+| 1:45–2:20 | **Act 2b — Live camera, real-time skeleton** | `lab step 2`: the frame loop |
 | 2:20–2:50 | **Act 3 — Race your own backend** | `lab step 3`: latency breakdown, races at 0 / 50 / 150 ms |
 | 2:50–3:00 | Close | On-device, cloud, or nowhere at all |
 
@@ -139,20 +139,25 @@ The lesson: moving the model is a short, fixed lifecycle, and every step has a
 DJL counterpart attendees saw running ten minutes ago.
 
 **Core** — implement in `frontend/src/app/demos/pose/litert-setup.ts`, in order.
-Each TODO names its DJL twin:
+Eight small functions, most of them one to three lines, each naming its DJL twin
+and the LiteRT.js call it needs. The functions that string them together
+(`startRuntime`, `fetchModelBytes`, `compileOnBestAccelerator`, `runModel`) are
+given, so reading them shows where each step fits:
 
-1. `startRuntime` — `loadLiteRt('/wasm/litert/')` (DJL: ONNX Runtime loading
-   its natives)
-2. `fetchModelBytes` — download the model; a 404 must say "run
-   download-models.sh" (DJL: `optModelPath`)
-3. `acceleratorsToTry` + `compileOnBestAccelerator` — `loadAndCompile` on
-   WebGPU, fall back to wasm (DJL: `Criteria…loadModel()`, but the browser gets
-   to choose its accelerator)
-4. `runModel` — `new Tensor`, `model.run`, `await output.data()`, then
-   `delete()` every tensor (DJL: `processInput`, `predict`, `processOutput`)
+1. `loadRuntime` — `loadLiteRt('/wasm/litert/')`, or the load already running
+   (DJL: ONNX Runtime loading its natives)
+2. `modelBytesFrom` — the response as bytes; a 404 must say "lab download"
+   (DJL: `optModelPath`)
+3. `acceleratorsToTry` — WebGPU first when the browser has it, wasm always
+4. `tryCompile` — `loadAndCompile` for one accelerator, null on failure (DJL:
+   `Criteria…loadModel()`, but the browser gets to choose its accelerator)
+5. `keepIfWarm` — run the warmup; free a model that fails it (DJL: the
+   `@PostConstruct` warmup)
+6. `runTensor` — `model.run`, outputs as a list (DJL: `predict`)
+7. `readFirstOutput` — `await output.data()` (DJL: `processOutput`)
+8. `deleteAll` — `delete()` every tensor (DJL: the NDManager scope)
 
-The page guides you: until a step is implemented, the error overlay names the
-next TODO.
+The page guides you: until a step is implemented, the error overlay names it.
 
 Checkpoint: the skeleton appears on the still, and the HUD shows the backend and
 a real inference time. Then press **Compare with backend**. The same file goes to
@@ -164,8 +169,9 @@ Grader: `litert-setup.spec.ts` runs each step against a **fake LiteRT.js** that
 records every call (path, accelerator order, freed tensors). No GPU needed.
 
 **Stretch**: `readInputSpec` (ask the model for its input shape instead of
-hard-coding 192×192) and `warmup` (run one grey frame, reject NaN or all-zero
-output: a backend that compiles is not a backend that works).
+hard-coding 192×192) and `isUsableOutput` (the given warmup runs one grey frame;
+reject NaN or all-zero output: a backend that compiles is not a backend that
+works).
 
 **Talking points**:
 - why tensors need a manual `delete()` (the JVM's NDManager scope has no
@@ -191,23 +197,24 @@ The lesson: real-time means decoupling drawing from inference, and doing neither
 through the UI framework. The page repaints at 60 fps while the model runs as
 fast as it can, never more than one inference at a time.
 
-**Core** — implement in `frontend/src/app/demos/pose/live-loop.ts`:
+**Core** — implement the four TODO methods of `FrameLoop` in
+`frontend/src/app/demos/pose/live-loop.ts`, one to four lines each. `start`,
+`stop` and `track` are given; drawing the skeleton is given too (`skeleton.ts`),
+because drawing lines teaches canvas, not on-device AI.
 
-- `drawSkeleton` — canvas 2D: a line per bone and a dot per keypoint. The model
-  gives normalized coordinates, so a keypoint lands at `(x * width, y *
-  height)`, and anything below the confidence threshold is skipped.
-- `createFrameLoop` — every frame: schedule the next, draw the latest result,
-  start an inference only if none is in flight; `stop()` cancels and drops late
-  results.
+1. `scheduleNext` — `requestAnimationFrame` for the next tick; keep its id
+2. `tick` — schedule the next frame first, draw the latest result, maybe infer
+3. `maybeStartInference` — start one only if none is in flight
+4. `accept` — keep a finished result, unless it is null or the loop stopped
 
 Checkpoint: the skeleton tracks the squat clip and the fps counter moves.
 
-Grader: `live-loop.spec.ts`, with a recording fake canvas and a manual
-`requestAnimationFrame` clock.
+Grader: `live-loop.spec.ts`, with a manual `requestAnimationFrame` clock and
+inferences the test resolves by hand.
 
-**Stretch**: `createStatsThrottle` — the HUD's fps and average ms, published at
-~2 Hz instead of 60, so the numbers are readable and the UI isn't re-rendered
-every frame.
+**Stretch**: the `StatsThrottle` methods `record`, `averageMs` and `fps` — the
+HUD's numbers, published at ~2 Hz instead of 60, so they are readable and the
+UI isn't re-rendered every frame.
 
 **Talking points**:
 - why the loop runs outside Angular change detection (`runOutsideAngular`, see
@@ -226,14 +233,17 @@ lab step 3
 Route: `/benchmark?fixture=1`. One frame from the clip goes 20× through LiteRT.js
 in the browser and 20× through **your own** Act 1 backend, interleaved.
 
-**Core** — implement in `frontend/src/app/benchmark/race-summary.ts`:
+**Core** — implement in `frontend/src/app/benchmark/race-summary.ts`, four
+small functions (`summarizeRace` and `resultsRow`, which use them, are given):
 
-- `networkShare` — the part of the round trip that is not the model: `round
-  trip − model time`, never below 0. One subtraction, and it *is* the lesson;
-- `summarizeRace` — the local and backend summaries, using the given `median` /
-  `p95`;
-- `resultsRow` — the race as a row for the table below. The page shows it with
-  a Copy button.
+1. `networkShare` — the part of the round trip that is not the model: `round
+   trip − model time`, never below 0. One subtraction, and it *is* the lesson
+2. `summarizeCloud` — the backend's summary with the given `summarize`, or null
+   when it never answered
+3. `formatMs` — one decimal and " ms"
+4. `cloudCells` — the four backend cells of the results row, or four dashes
+
+The page shows the row with a Copy button.
 
 Then race three times, at **+0**, **+50** and **+150 ms** injected WAN latency
 (the dropdown sets the backend's delay), and fill in the table:
@@ -286,15 +296,19 @@ server. Embeddings turn text into geometry; 384 floats per document is enough
 to beat keyword search, with no index server anywhere. The model lives in a Web
 Worker because a 20 MB model compiling on the main thread freezes the UI.
 
-**Core** — implement in `frontend/src/app/demos/search/embedding-setup.ts`, in order:
+**Core** — implement in `frontend/src/app/demos/search/embedding-setup.ts`, in
+order. Six small functions; `configureOffline`, `loadEmbedder` and `embedTexts`,
+which string them together, are given:
 
-1. `configureOffline` — forbid the Hugging Face Hub, serve models from
-   `/models/` and ONNX Runtime from `/wasm/ort/`
-2. `embeddingCandidates` — WebGPU with fp32 first, wasm with q8 as the fallback
-3. `loadEmbedder` — `AutoTokenizer` once, then `AutoModel` per candidate; keep
-   the first that survives a warmup embedding
-4. `embedTexts` — tokenize (padding + truncation), run the model, and pass
-   `last_hidden_state` + `attention_mask` to the given `sentenceEmbeddings`
+1. `configureModelFiles` — forbid the Hugging Face Hub, serve models from
+   `/models/`
+2. `configureWasm` — ONNX Runtime from `/wasm/ort/`, one thread, no proxy
+3. `embeddingCandidates` — WebGPU with fp32 first, wasm with q8 as the fallback
+4. `tryCandidate` — load the model for one candidate and survive a warmup
+   embedding
+5. `tokenize` — padding + truncation
+6. `tensorNamed` — take `last_hidden_state` / `attention_mask` out of an
+   untyped result, safely
 
 The page guides you: until a step works, the search demo shows the next TODO
 where the results would be.
@@ -341,12 +355,15 @@ given. They are ordinary business logic, not what this block is about.
 
 **Core** — implement in `ocr-layout.ts`:
 
-- `sameRow` — do two bounding boxes sit on one visual line?
-- `wordsRightOf` — the words right of a label, in reading order
-- `findLabeledAmount` — find the total from the layout: skip "Subtotal", skip a
-  header label with nothing beside it, and prefer the lowest label on the page
-- `calibrate` — combine the heuristic's confidence with the OCR model's
-  per-word confidence; the weakest word decides
+1. `verticalOverlap` — how many pixels two boxes share vertically
+2. `sameRow` — do two bounding boxes sit on one visual line?
+3. `wordsRightOf` — the words right of a label, in reading order
+4. `amountBeside` — the amount right of a label, with the words it came from
+5. `weakestConfidence` — the weakest word decides
+6. `capFor` — how far a value can be trusted, given its weakest word
+
+`findLabeledAmount` (prefer the lowest label on the page) and `calibrate`, which
+use them, are given.
 
 Grader: hand-built boxes for each rule, plus **real Tesseract output** for the
 bundled receipt (`ocr-layout.fixture.json`).
@@ -357,16 +374,18 @@ label). Every field carries a calibrated badge, and the counter still reads zero
 
 **Stretch — working with the on-device LLM**, in `prompt-api.ts`:
 
-- `buildPromptInput` — fence the OCR text off as data (a receipt can say
-  "ignore previous instructions"), then list the words the OCR model doubted
-  so the language model knows which characters to question
-- `parsePromptJson` — validate the reply against the zod `PromptReplySchema`.
-  The same schema, converted to JSON Schema, is passed as `responseConstraint`
-  to constrain the model's decoding
-- `mergeFields` — the trust policy: never override a `high` value, re-validate
-  every model value (an IBAN still has to pass mod-97), tag model values `medium`
+1. `fenceAsData` — fence the OCR text off as data (a receipt can say "ignore
+   previous instructions")
+2. `unsureWords` — the words the OCR model doubted, so the language model knows
+   which characters to question
+3. `jsonObjectIn` — the JSON object inside a chatty reply
+4. `validateReply` — check it against the zod `PromptReplySchema`. The same
+   schema, converted to JSON Schema, is passed as `responseConstraint` to
+   constrain the model's decoding
+5. `canOverride` — the trust policy: never override a `high` value
+6. `cleanIban` — re-validate a model value (an IBAN still has to pass mod-97)
 
-All three are pure functions with specs, so they work on any laptop. Seeing the
+All six are pure functions with specs, so they work on any laptop. Seeing the
 LLM run live needs Chrome with Gemini Nano downloaded (several GB), so treat it
 as a presenter demo, not a room requirement.
 
@@ -409,16 +428,17 @@ thirty people are switching checkpoints at once:
 - `solve` copies your attempt into `.workshop-backups/<stamp>/` (gitignored)
   before overwriting it.
 
-Each exercise is a function body removed with its spec left in place, so the
-grader already exists. What each checkpoint leaves failing:
+Each exercise is a set of small function bodies removed with their specs left
+in place, so the grader already exists. The specs have one `describe` block per
+step ("Step 3 · acceleratorsToTry"), so the test output reads as a checklist. What each checkpoint leaves failing:
 
 | Tag | Files | Failing at the start |
 |---|---|---|
-| `step-1-start` | `pose/litert-setup.ts` | 19 of 24 (5 of them stretch) |
-| `step-2-start` | `pose/live-loop.ts` | 13 of 16 (2 of them stretch) |
-| `step-3-start` | `benchmark/race-summary.ts` | 7 of 8 |
-| `bonus-search-start` | `search/embedding-setup.ts` | 13 of 18 (1 of them stretch) |
-| `bonus-ocr-start` | `smartform/ocr-layout.ts`, `prompt-api.ts` | 22 of 37 (9 of them stretch) |
+| `step-1-start` | `pose/litert-setup.ts` | 21 of 28 (4 of them stretch) |
+| `step-2-start` | `pose/live-loop.ts` | 17 of 20 (5 of them stretch) |
+| `step-3-start` | `benchmark/race-summary.ts` | 7 of 11 |
+| `bonus-search-start` | `search/embedding-setup.ts` | 15 of 20 (1 of them stretch) |
+| `bonus-ocr-start` | `smartform/ocr-layout.ts`, `prompt-api.ts` | 34 of 57 (16 of them stretch) |
 
 Only the current checkpoint is stubbed; the rest of the app is the finished
 reference. So attendees always see their piece working *in context*, and a

@@ -35,21 +35,39 @@ export interface OcrWord {
 // Layout
 // =============================================================================
 
-/**
- * True if two boxes sit on the same visual row: their vertical extents overlap
- * by at least half the height of the shorter one. Half, not "any overlap",
- * because tall glyphs and slightly skewed photos make neighbouring rows touch;
- * and relative to the SHORTER box so a small word beside a big one still counts.
- */
-export function sameRow(a: Box, b: Box): boolean {
-  const overlap = Math.min(a.y1, b.y1) - Math.max(a.y0, b.y0);
-  const shorter = Math.min(a.y1 - a.y0, b.y1 - b.y0);
-  return shorter > 0 && overlap >= shorter / 2;
+/** A box's height in pixels. */
+export function height(box: Box): number {
+  return box.y1 - box.y0;
 }
 
 /**
- * The words on the same row as `anchor` that start to its right, in reading
- * order (left to right). The anchor itself is never included.
+ * Step 1 — How many pixels two boxes share vertically: from the lower of the
+ * two tops to the higher of the two bottoms, and 0 when they do not overlap at
+ * all. Remember y grows DOWNWARDS in image coordinates.
+ */
+export function verticalOverlap(a: Box, b: Box): number {
+  return Math.max(0, Math.min(a.y1, b.y1) - Math.max(a.y0, b.y0));
+}
+
+/**
+ * Step 2 — True if two boxes sit on the same visual row: they overlap
+ * vertically (step 1) by at least HALF the height of the SHORTER box.
+ *   * Half, not "any overlap": tall glyphs and slightly skewed photos make
+ *     neighbouring rows touch by a pixel or two.
+ *   * The shorter box: a small "11,00" beside a big bold "TOTAL" is still on
+ *     its row.
+ * A box with zero height is on no row.
+ */
+export function sameRow(a: Box, b: Box): boolean {
+  const shorter = Math.min(height(a), height(b));
+  return shorter > 0 && verticalOverlap(a, b) >= shorter / 2;
+}
+
+/**
+ * Step 3 — The words on the same row as `anchor` (step 2) that start to its
+ * right (their left edge at or beyond the anchor's right edge), sorted left to
+ * right. Never the anchor itself. Tesseract returns words in ITS reading
+ * order, which on a two-column receipt is not left to right across the row.
  */
 export function wordsRightOf(words: readonly OcrWord[], anchor: OcrWord): OcrWord[] {
   return words
@@ -71,30 +89,37 @@ export interface LabeledValue<T> {
 }
 
 /**
+ * Step 4 — The amount to the right of `label` (step 3), or undefined when
+ * there is none. Parse it with the given `moneyIn` over the texts of those
+ * words joined by a space ("EUR 13,50" is two words), and return it together
+ * with the words: they are the evidence the confidence steps judge.
+ */
+export function amountBeside(
+  words: readonly OcrWord[],
+  label: OcrWord,
+): LabeledValue<number> | undefined {
+  const right = wordsRightOf(words, label);
+  const value = moneyIn(right.map((w) => w.text).join(' '));
+  return value === undefined ? undefined : { value, words: right };
+}
+
+/**
  * Find the receipt total by layout: a word matching {@link TOTAL_LABEL} with an
- * amount to its right on the same row. `words` are the value's words (those
- * right of the label), which is the evidence {@link calibrate} judges.
- *
- * A receipt can carry several labels ("Betrag" as a column header, "Summe",
- * then "Gesamtbetrag"). Skip any label with no amount beside it, and of the
- * rest prefer the one LOWEST on the page — the grand total comes last.
+ * amount beside it (step 4). A receipt can carry several labels ("Betrag" as a
+ * column header, "Summe", then "Gesamtbetrag"), so look from the bottom of the
+ * page up — the grand total comes last — and skip labels with no amount.
  */
 export function findLabeledAmount(words: readonly OcrWord[]): LabeledValue<number> | undefined {
-  let best: (LabeledValue<number> & { readonly y: number }) | undefined;
-  for (const label of words) {
-    if (!TOTAL_LABEL.test(label.text)) {
-      continue;
-    }
-    const right = wordsRightOf(words, label);
-    const value = moneyIn(right.map((w) => w.text).join(' '));
-    if (value === undefined) {
-      continue;
-    }
-    if (!best || label.bbox.y0 > best.y) {
-      best = { value, words: right, y: label.bbox.y0 };
+  const labels = words
+    .filter((w) => TOTAL_LABEL.test(w.text))
+    .sort((a, b) => b.bbox.y0 - a.bbox.y0);
+  for (const label of labels) {
+    const found = amountBeside(words, label);
+    if (found) {
+      return found;
     }
   }
-  return best && { value: best.value, words: best.words };
+  return undefined;
 }
 
 // =============================================================================
@@ -107,32 +132,36 @@ export const LOW_BELOW = 60;
 export const TRUST_FROM = 85;
 
 /**
- * Combine what the heuristic thinks of a value with what the OCR model thought
- * of the words it came from. A perfect IBAN checksum means nothing if the
- * digits were read at 40% — one misread digit that still passes mod-97 is rare,
- * but "rare" is not a promise you print on a badge.
- *
- * The weakest word decides (a chain is as strong as its weakest link):
- *   - no evidence at all       → keep the heuristic's confidence unchanged;
- *   - weakest word < LOW_BELOW  → `low`;
- *   - weakest word < TRUST_FROM → at most `medium`;
- *   - otherwise                 → the heuristic's confidence.
- *
- * Calibration only ever lowers confidence; the OCR model cannot vouch for a
- * value more strongly than the rule that extracted it.
+ * Step 5 — The lowest OCR confidence among the words a value was read from
+ * (a chain is as strong as its weakest link), or undefined without any words.
  */
-export function calibrate(heuristic: Confidence, evidence: readonly OcrWord[]): Confidence {
-  if (evidence.length === 0) {
-    return heuristic;
-  }
-  const weakest = Math.min(...evidence.map((w) => w.confidence));
+export function weakestConfidence(evidence: readonly OcrWord[]): number | undefined {
+  return evidence.length === 0 ? undefined : Math.min(...evidence.map((w) => w.confidence));
+}
+
+/**
+ * Step 6 — The most a value can be trusted, given its weakest word:
+ *   - below LOW_BELOW  → `low`;
+ *   - below TRUST_FROM → `medium`;
+ *   - otherwise        → `high`.
+ */
+export function capFor(weakest: number): Confidence {
   if (weakest < LOW_BELOW) {
     return 'low';
   }
-  if (weakest < TRUST_FROM) {
-    return heuristic === 'high' ? 'medium' : heuristic;
-  }
-  return heuristic;
+  return weakest < TRUST_FROM ? 'medium' : 'high';
+}
+
+/**
+ * Combine what the heuristic thinks of a value with what the OCR model thought
+ * of the words it came from (steps 5 and 6). A perfect IBAN checksum means
+ * nothing if the digits were read at 40%: the text never tells you that, the
+ * word confidences do. Calibration only ever LOWERS confidence: the OCR model
+ * cannot vouch for a value more strongly than the rule that extracted it.
+ */
+export function calibrate(heuristic: Confidence, evidence: readonly OcrWord[]): Confidence {
+  const weakest = weakestConfidence(evidence);
+  return weakest === undefined ? heuristic : atMost(heuristic, capFor(weakest));
 }
 
 // =============================================================================
